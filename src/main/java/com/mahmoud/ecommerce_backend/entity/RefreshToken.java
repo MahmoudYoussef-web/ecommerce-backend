@@ -33,7 +33,7 @@ public class RefreshToken extends BaseEntity {
     private User user;
 
     @NotBlank
-    @Column(name = "token_hash", nullable = false, unique = true, length = 512)
+    @Column(name = "token_hash", nullable = false, unique = true)
     private String tokenHash;
 
     @NotNull

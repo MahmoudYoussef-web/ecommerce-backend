@@ -49,6 +49,7 @@ public class User extends BaseEntity {
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
+    @Builder.Default
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
@@ -114,4 +115,6 @@ public class User extends BaseEntity {
             email = email.toLowerCase().trim();
         }
     }
+
+
 }
