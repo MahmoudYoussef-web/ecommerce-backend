@@ -1,4 +1,3 @@
-````md
 # 🛒 E-commerce Backend System (Spring Boot)
 
 ![Java](https://img.shields.io/badge/Java-21-orange)
