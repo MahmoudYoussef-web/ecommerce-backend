@@ -1,114 +1,135 @@
-# E-commerce Backend built with Java Spring Boot, MySQL, Spring Security & JWT
+````md
+# 🛒 E-commerce Backend System (Spring Boot)
 
-I built this project to develop a production-ready backend system using Spring Boot. The goal was to implement a complete e-commerce backend with authentication, authorization, and real-world business flows such as cart, orders, and payments.
+![Java](https://img.shields.io/badge/Java-21-orange)
+![Spring Boot](https://img.shields.io/badge/SpringBoot-3.x-green)
+![MySQL](https://img.shields.io/badge/MySQL-8-blue)
+![JWT](https://img.shields.io/badge/Auth-JWT-yellow)
+![Status](https://img.shields.io/badge/Status-Production--Ready-brightgreen)
 
-This project helped me understand how to design scalable REST APIs, implement JWT authentication, and build a clean layered architecture.
+A production-grade E-commerce backend system built with Spring Boot, designed to simulate real-world business workflows including authentication, cart management, order processing, and payment handling.
 
 ---
 
-## Complete Tech Stack
+## 🚀 Key Highlights
+
+* Scalable layered architecture (Controller → Service → Repository)
+* JWT Authentication with Access & Refresh Tokens
+* Role-Based Authorization (ADMIN / USER)
+* Advanced product filtering using dynamic queries (Specifications)
+* Standardized API response structure (`ApiResponse<T>`)
+* Global exception handling
+* DTO mapping using MapStruct
+* Pagination support
+* Stateless and secure backend design
+
+---
+
+## 🧠 Production Improvements
+
+The system has been enhanced with real-world backend practices to ensure reliability, consistency, and security:
+
+* Input validation at service level (beyond annotations)
+* Cart validation (empty cart, invalid quantities)
+* Stock validation before order creation
+* Prevention of negative stock and inconsistent states
+* Order ownership validation (user isolation)
+* Payment idempotency (prevent duplicate payments)
+* Strict payment state transitions
+* Order and payment lifecycle synchronization
+* Defensive programming against null and invalid data
+* Structured logging for business-critical operations
+
+---
+
+## 📊 Business Rules
+
+* A user can only access their own cart, orders, and payments
+* Orders can only be created from a non-empty cart
+* Products must be available (not DRAFT) to be added to cart or ordered
+* Stock is validated before order creation
+* Payment can only be created for PENDING orders
+* Each order can have only one payment
+* Payment status follows strict transitions:
+  * INITIATED → COMPLETED / FAILED / CANCELLED
+  * COMPLETED → REFUNDED / PARTIALLY_REFUNDED
+* Order status is updated automatically after successful payment
+
+---
+
+## 📝 Logging Strategy
+
+The system uses structured logging to track important business events:
+
+* Order creation and validation failures
+* Cart operations (add/update/remove)
+* Payment lifecycle events
+* Security-related actions (unauthorized access attempts)
+
+Logs are designed to support debugging and monitoring in production environments.
+
+---
+
+## 🔄 Core Business Flows
+
+* User authenticates using JWT
+* User browses and filters products
+* User adds items to cart
+* User places an order
+* System calculates total and stores snapshot
+* Payment is created and updated
+
+---
+
+## 🧰 Tech Stack
 
 * Java 21+
 * Spring Boot
-* Spring Data JPA (Hibernate)
+* Spring Data JPA
 * Spring Security
-* JWT Authentication
-* MySQL Database
+* JWT
+* MySQL
 * Maven
 * Lombok
-* MapStruct (DTO Mapping)
-* Swagger / OpenAPI
-* Postman for API Testing
+* MapStruct
+* Swagger
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
-The project follows a clean layered architecture:
-
-Controller → Service → Repository → Entity
-DTOs + Mappers are used to separate API contracts from database models.
+Controller → Service → Repository → Entity  
+↘ DTO ↔ Mapper ↗
 
 ---
 
-## Features Summary
+## 📁 Project Structure
 
-### Authentication & Security
-
-* JWT-based Authentication (Access + Refresh Tokens)
-* Secure Login / Register / Logout
-* Token Refresh Flow
-* Role-based Authorization (Admin / User)
-* Stateless Security using Spring Security
-
----
-
-### Product & Category
-
-* Create / Update / Delete Products (Admin only)
-* Pagination for products
-* Filter products by category
-* Category management (Admin)
+```bash
+src/main/java/com/mahmoud/ecommerce_backend
+├── controller
+├── service
+├── repository
+├── dto
+├── mapper
+├── entity
+├── security
+├── exception
+├── config
+````
 
 ---
 
-### Cart System
+## 🔐 Security
 
-* Each user has a single cart
-* Add items to cart
-* Update item quantity
-* Remove items
-* Clear cart
-
----
-
-### Orders
-
-* Create order from cart
-* Store order snapshot (price, product info)
-* Retrieve user orders
+* JWT Authentication
+* Access & Refresh Tokens
+* Role-based authorization
+* Stateless session
 
 ---
 
-### Payments
-
-* Create payment for order
-* Payment status tracking
-* Supported statuses:
-
-    * INITIATED
-    * COMPLETED
-    * FAILED
-    * REFUNDED
-
----
-
-### Wishlist
-
-* Add product to wishlist
-* Remove product
-* Retrieve wishlist
-
----
-
-### Reviews
-
-* Add review for product
-* Get product reviews
-
----
-
-## Database Design
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/fd86ce51-0360-4806-9d3c-19afde15fb5d" width="900"/>
-</p>
-
-This diagram represents the relational database design of the system, including users, roles, authentication (refresh tokens), products, categories, cart, orders, payments, wishlist, and reviews.
-
----
-
-## REST API Endpoints
+## 🔗 REST API Endpoints
 
 All endpoints are prefixed with:
 
@@ -118,46 +139,48 @@ All endpoints are prefixed with:
 
 ---
 
-### AuthController
+### 🔐 Auth
 
-| Method | Endpoint       | Description               |
-| ------ | -------------- | ------------------------- |
-| POST   | /auth/register | Register new user         |
-| POST   | /auth/login    | Login and get tokens      |
-| POST   | /auth/refresh  | Refresh access token      |
-| POST   | /auth/logout   | Logout (invalidate token) |
-
----
-
-### ProductController
-
-| Method | Endpoint                        | Description                  |
-| ------ | ------------------------------- | ---------------------------- |
-| GET    | /products                       | Get all products (paginated) |
-| GET    | /products/{id}                  | Get product by ID            |
-| POST   | /products                       | Create product (ADMIN)       |
-| PUT    | /products/{id}                  | Update product (ADMIN)       |
-| GET    | /products/category/{categoryId} | Get by category              |
+| Method | Endpoint       | Description          |
+| ------ | -------------- | -------------------- |
+| POST   | /auth/register | Register new user    |
+| POST   | /auth/login    | Login and get tokens |
+| POST   | /auth/refresh  | Refresh token        |
+| POST   | /auth/logout   | Logout               |
 
 ---
 
-### CategoryController
+### 📦 Products
+
+| Method | Endpoint                        | Description              |
+| ------ | ------------------------------- | ------------------------ |
+| GET    | /products                       | Get all products         |
+| GET    | /products/{id}                  | Get product by ID        |
+| GET    | /products/search                | Advanced filtering       |
+| GET    | /products/category/{categoryId} | Get products by category |
+| POST   | /products                       | Create product (ADMIN)   |
+| PUT    | /products/{id}                  | Update product (ADMIN)   |
+| DELETE | /products/{id}                  | Delete product (ADMIN)   |
+
+---
+
+### 🗂️ Categories
 
 | Method | Endpoint           | Description        |
 | ------ | ------------------ | ------------------ |
 | GET    | /categories        | Get all categories |
-| GET    | /categories/{slug} | Get by slug        |
+| GET    | /categories/{slug} | Get category       |
 | POST   | /categories        | Create (ADMIN)     |
 | PUT    | /categories/{id}   | Update (ADMIN)     |
 | DELETE | /categories/{id}   | Delete (ADMIN)     |
 
 ---
 
-### CartController
+### 🛒 Cart
 
 | Method | Endpoint                | Description     |
 | ------ | ----------------------- | --------------- |
-| GET    | /cart                   | Get user cart   |
+| GET    | /cart                   | Get cart        |
 | POST   | /cart/items             | Add item        |
 | PUT    | /cart/items/{productId} | Update quantity |
 | DELETE | /cart/items/{productId} | Remove item     |
@@ -165,16 +188,17 @@ All endpoints are prefixed with:
 
 ---
 
-### OrderController
+### 📦 Orders
 
-| Method | Endpoint | Description     |
-| ------ | -------- | --------------- |
-| POST   | /orders  | Create order    |
-| GET    | /orders  | Get user orders |
+| Method | Endpoint     | Description     |
+| ------ | ------------ | --------------- |
+| POST   | /orders      | Create order    |
+| GET    | /orders      | Get user orders |
+| GET    | /orders/{id} | Get order by ID |
 
 ---
 
-### PaymentController
+### 💳 Payments
 
 | Method | Endpoint              | Description           |
 | ------ | --------------------- | --------------------- |
@@ -183,7 +207,7 @@ All endpoints are prefixed with:
 
 ---
 
-### WishlistController
+### ❤️ Wishlist
 
 | Method | Endpoint                    | Description    |
 | ------ | --------------------------- | -------------- |
@@ -193,7 +217,7 @@ All endpoints are prefixed with:
 
 ---
 
-### ReviewController
+### ⭐ Reviews
 
 | Method | Endpoint                     | Description         |
 | ------ | ---------------------------- | ------------------- |
@@ -202,50 +226,42 @@ All endpoints are prefixed with:
 
 ---
 
-## How to Run
+## 🗄️ Database Design
 
-1. Clone the repository
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/fd86ce51-0360-4806-9d3c-19afde15fb5d" width="900"/>
+</p>
 
-2. Configure application.properties
+---
 
-```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/ecommerce_db
-spring.datasource.username=your_user
-spring.datasource.password=your_password
+## 📄 API Documentation
 
-spring.jpa.hibernate.ddl-auto=update
+[http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
 
-auth.jwt.secret=YOUR_SECRET
-auth.jwt.expiration=3600000
-```
+---
 
-3. Run the project
+## ⚡ Quick Run
 
 ```bash
+git clone https://github.com/MahmoudYoussef-web/ecommerce-backend.git
+cd ecommerce-backend
 mvn spring-boot:run
 ```
 
-4. Open Swagger
+---
 
-```
-http://localhost:8080/swagger-ui/index.html
-```
+## 🚀 Future Improvements
+
+* Docker containerization
+* Deployment to cloud (AWS / Render / Railway)
+* Integration with payment gateways (Stripe / PayPal)
+* Caching (Redis)
+* Unit and integration testing
 
 ---
 
-## Reflection
+## 👨‍💻 Author
 
-This project helped me:
+Mahmoud Youssef
+Backend Developer | Spring Boot
 
-* Build a complete real-world backend system
-* Understand JWT authentication deeply
-* Design scalable REST APIs
-* Work with relational database modeling
-* Apply clean architecture principles
-
----
-
-## Author
-
-Mahmoud
-Backend Developer (Spring Boot)

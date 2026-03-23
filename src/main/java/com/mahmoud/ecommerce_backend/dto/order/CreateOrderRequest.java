@@ -7,5 +7,8 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreateOrderRequest {
+
     private Long addressId;
+
+    private String customerNotes;
 }

@@ -1,4 +1,3 @@
-// ===================== AuthController =====================
 package com.mahmoud.ecommerce_backend.controller;
 
 import com.mahmoud.ecommerce_backend.dto.auth.*;

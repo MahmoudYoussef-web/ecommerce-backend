@@ -1,9 +1,10 @@
 package com.mahmoud.ecommerce_backend.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
@@ -12,7 +13,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
-@RequiredArgsConstructor
 @Slf4j
 public class GlobalExceptionHandler {
 
@@ -21,7 +21,8 @@ public class GlobalExceptionHandler {
             ApiException ex,
             HttpServletRequest request
     ) {
-        log.error("API Exception: {}", ex.getMessage());
+
+        log.warn("API Exception: {}", ex.getMessage());
 
         ApiErrorResponse response = new ApiErrorResponse(
                 ex.getStatus().value(),
@@ -38,6 +39,7 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException ex,
             HttpServletRequest request
     ) {
+
         Map<String, String> errors = new HashMap<>();
 
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
@@ -55,11 +57,48 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(response);
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccessDenied(
+            AccessDeniedException ex,
+            HttpServletRequest request
+    ) {
+
+        log.warn("Access denied: {}", ex.getMessage());
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                403,
+                "Access denied",
+                "ACCESS_DENIED",
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(403).body(response);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiErrorResponse> handleAuthentication(
+            AuthenticationException ex,
+            HttpServletRequest request
+    ) {
+
+        log.warn("Authentication failed: {}", ex.getMessage());
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                401,
+                "Authentication required",
+                "UNAUTHORIZED",
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(401).body(response);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGenericException(
             Exception ex,
             HttpServletRequest request
     ) {
+
         log.error("Unexpected error", ex);
 
         ApiErrorResponse response = new ApiErrorResponse(

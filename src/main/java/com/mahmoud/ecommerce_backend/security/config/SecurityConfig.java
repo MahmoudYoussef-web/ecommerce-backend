@@ -58,11 +58,17 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/v3/api-docs.yaml"
                         ).permitAll()
+
+
+                        .requestMatchers("/api/products/**", "/api/categories/**")
+                        .permitAll()
+
+                        .requestMatchers("/api/payments/**")
+                        .authenticated()
                         .anyRequest().authenticated()
                 );
 
         http.authenticationProvider(authProvider());
-
         http.addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

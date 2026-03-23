@@ -30,7 +30,7 @@ public class ShopUserDetails implements UserDetails {
                 user.isEnabled(),
                 user.getUserRoles().stream()
                         .map(UserRole::getRole)
-                        .map(role -> new SimpleGrantedAuthority(role.getName().name()))
+                        .map(role -> new SimpleGrantedAuthority(role.getName().name())) // ROLE_ADMIN / ROLE_USER
                         .toList()
         );
     }
@@ -40,23 +40,8 @@ public class ShopUserDetails implements UserDetails {
         return email;
     }
 
-    @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isAccountNonLocked() {
-        return accountNonLocked;
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return enabled;
-    }
+    @Override public boolean isAccountNonExpired() { return true; }
+    @Override public boolean isAccountNonLocked() { return accountNonLocked; }
+    @Override public boolean isCredentialsNonExpired() { return true; }
+    @Override public boolean isEnabled() { return enabled; }
 }

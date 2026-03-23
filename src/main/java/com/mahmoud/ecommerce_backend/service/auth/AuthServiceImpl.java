@@ -32,7 +32,6 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final PasswordEncoder passwordEncoder;
 
-    // ===================== REGISTER =====================
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -64,7 +63,6 @@ public class AuthServiceImpl implements AuthService {
         return generateTokens(user, null);
     }
 
-    // ===================== LOGIN =====================
     @Override
     @Transactional
     public AuthResponse login(LoginRequest request) {
@@ -82,7 +80,6 @@ public class AuthServiceImpl implements AuthService {
         return generateTokens(user, authentication);
     }
 
-    // ===================== TOKEN GENERATION =====================
     private AuthResponse generateTokens(User user, Authentication authentication) {
 
         if (authentication == null || authentication.getAuthorities() == null || authentication.getAuthorities().isEmpty()) {
@@ -104,12 +101,12 @@ public class AuthServiceImpl implements AuthService {
 
         String accessToken = jwtUtils.generateToken(authentication);
 
-        // 🔥 NEW refresh token
+
         String newRefreshToken = UUID.randomUUID().toString();
 
         RefreshToken token = RefreshToken.builder()
                 .user(user)
-                .tokenHash(newRefreshToken) // ❗ NO hashing (fast lookup)
+                .tokenHash(newRefreshToken)
                 .expiresAt(Instant.now().plusSeconds(604800))
                 .revoked(false)
                 .build();
@@ -122,7 +119,7 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
-    // ===================== REFRESH =====================
+
     @Override
     @Transactional
     public AuthResponse refreshToken(String refreshToken) {
@@ -136,14 +133,13 @@ public class AuthServiceImpl implements AuthService {
 
         User user = token.getUser();
 
-        // 🔥 TOKEN ROTATION
+
         token.setRevoked(true);
         token.setRevokedAt(Instant.now());
 
         return generateTokens(user, null);
     }
 
-    // ===================== LOGOUT =====================
     @Override
     @Transactional
     public void logout(String refreshToken) {

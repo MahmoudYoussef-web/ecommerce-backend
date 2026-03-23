@@ -4,7 +4,6 @@ import com.mahmoud.ecommerce_backend.dto.order.*;
 import com.mahmoud.ecommerce_backend.entity.Order;
 import com.mahmoud.ecommerce_backend.entity.OrderItem;
 import com.mahmoud.ecommerce_backend.entity.Address;
-import com.mahmoud.ecommerce_backend.entity.AddressSnapshot;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -18,6 +17,7 @@ public interface OrderMapper {
 
     @Mapping(target = "items", source = "orderItems")
     @Mapping(target = "address", source = "shippingAddress")
+    @Mapping(target = "status", expression = "java(order.getStatus() != null ? order.getStatus().name() : null)")
     OrderResponse toResponse(Order order);
 
     List<OrderItemResponse> toItemResponses(List<OrderItem> items);
@@ -28,6 +28,16 @@ public interface OrderMapper {
     @Mapping(target = "productImageUrl", source = "productImageUrl")
     @Mapping(target = "priceAtPurchase", source = "priceAtPurchase")
     OrderItemResponse toItemResponse(OrderItem item);
+
+
+    @Mapping(target = "street", source = "addressLine1")
+    @Mapping(target = "zipCode", source = "postalCode")
+    @Mapping(target = "city", source = "city")
+    @Mapping(target = "country", source = "country")
+    com.mahmoud.ecommerce_backend.dto.order.AddressSnapshot map(
+            com.mahmoud.ecommerce_backend.entity.AddressSnapshot snapshot
+    );
+
 
     AddressSnapshot toSnapshot(Address address);
 
