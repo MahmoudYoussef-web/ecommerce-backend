@@ -66,9 +66,9 @@ This system models a real-world E-commerce platform where:
 * Secure Webhook handling
 * Payment verification using:
 
-    * Amount validation
-    * Currency validation
-    * Order ownership validation
+  * Amount validation
+  * Currency validation
+  * Order ownership validation
 * Idempotent payment processing (duplicate-safe)
 * Event-driven order updates after payment
 
@@ -91,9 +91,25 @@ This system models a real-world E-commerce platform where:
 
 ---
 
-## 🏗️ Architecture
+## 📁 Project Structure
 
-The system follows a **layered architecture**:
+```text
+src/main/java/com/mahmoud/ecommerce_backend/
+
+├── controller     → REST APIs (Auth, Product, Cart, Order, Payment)
+├── service        → Business logic (core rules & workflows)
+├── repository     → Data access layer (Spring Data JPA)
+├── entity         → JPA entities (database models)
+├── dto            → Request & Response DTOs
+├── mapper         → MapStruct mappers
+├── security       → JWT authentication & authorization
+├── exception      → Global exception handling
+├── config         → Configuration (Redis, Security, etc.)
+```
+
+---
+
+## 🏗️ Architecture
 
 ```text
 Client
@@ -152,11 +168,11 @@ User → Backend → Stripe Checkout
 
 ---
 
-## ⚠️ Exception Handling Strategy
+## ⚠️ Error Handling & Exception Strategy
 
-Centralized using `@RestControllerAdvice`
+The system uses a centralized exception handling mechanism via `@RestControllerAdvice`.
 
-### Example Error Response
+### 🧱 Error Response Structure
 
 ```json
 {
@@ -170,6 +186,33 @@ Centralized using `@RestControllerAdvice`
 
 ---
 
+### 🧠 Covered Exceptions
+
+| Exception                       | HTTP Status | Description             |
+| ------------------------------- | ----------- | ----------------------- |
+| ResourceNotFoundException       | 404         | Resource not found      |
+| BusinessException               | 400         | Business rule violation |
+| UnauthorizedException           | 403         | Access denied           |
+| DataIntegrityViolationException | 409         | DB constraint violation |
+| MethodArgumentNotValidException | 400         | Validation error        |
+| Exception                       | 500         | Unexpected error        |
+
+---
+
+## 📂 Logging Strategy
+
+* WARN → Business & validation issues
+* ERROR → System failures
+
+Example:
+
+```
+WARN  - Invalid cart operation  
+ERROR - Payment processing failure
+```
+
+---
+
 ### Covered Scenarios
 
 * Validation errors
@@ -177,23 +220,6 @@ Centralized using `@RestControllerAdvice`
 * Unauthorized access
 * Payment failures
 * Database constraint violations
-
----
-
-## 📁 Project Structure
-
-```text
-src/main/java/com/mahmoud/ecommerce_backend
-├── controller
-├── service
-├── repository
-├── dto
-├── mapper
-├── entity
-├── security
-├── exception
-├── config
-```
 
 ---
 
@@ -213,38 +239,65 @@ src/main/java/com/mahmoud/ecommerce_backend
 
 ---
 
-## 🔗 API Overview
+## 🌐 API Endpoints
 
-All endpoints are prefixed with:
+### 🔐 Authentication
 
-```
-/api
-```
-
-### Core Modules
-
-* Auth → `/auth/*`
-* Products → `/products/*`
-* Cart → `/cart/*`
-* Orders → `/orders/*`
-* Payments → `/payments/*`
-* Wishlist → `/wishlist/*`
-* Reviews → `/reviews/*`
+| Method | Endpoint           | Description   |
+| ------ | ------------------ | ------------- |
+| POST   | /api/auth/register | Register user |
+| POST   | /api/auth/login    | Login         |
+| POST   | /api/auth/refresh  | Refresh token |
+| POST   | /api/auth/logout   | Logout        |
 
 ---
+
+### 📦 Products
+
+| Method | Endpoint             | Description      |
+| ------ | -------------------- | ---------------- |
+| GET    | /api/products        | Get all products |
+| GET    | /api/products/{id}   | Get product      |
+| GET    | /api/products/search | Filter products  |
+| POST   | /api/products        | Create (ADMIN)   |
+
+---
+
+### 🛒 Cart
+
+| Method | Endpoint                    | Description |
+| ------ | --------------------------- | ----------- |
+| GET    | /api/cart                   | Get cart    |
+| POST   | /api/cart/items             | Add item    |
+| PUT    | /api/cart/items/{productId} | Update item |
+| DELETE | /api/cart/items/{productId} | Remove item |
+
+---
+
+### 💳 Payments
+
+| Method | Endpoint                           | Description     |
+| ------ | ---------------------------------- | --------------- |
+| POST   | /api/payments                      | Create payment  |
+| POST   | /api/payments/checkout/{paymentId} | Stripe checkout |
+| POST   | /api/payments/webhook              | Payment webhook |
+
+---
+
 ## 🗄️ Database Design
 
 <p align="center">
- <img width="1907" height="1259" alt="ecommerce-backend" src="https://github.com/user-attachments/assets/186258f2-7ef5-4a8d-a731-a5d7df914e11" />
+ <img width="900" src="https://github.com/user-attachments/assets/186258f2-7ef5-4a8d-a731-a5d7df914e11" />
 </p>
-
 
 The database is designed to support:
 
-- Product variants (price & stock per variant)
-- Order snapshot consistency
-- Idempotent payment handling
-- Scalable relationships between core entities
+* Product variants (price & stock per variant)
+* Order snapshot consistency
+* Idempotent payment handling
+* Scalable relationships between core entities
+
+---
 
 ## 🧪 Running the Project
 
@@ -257,8 +310,6 @@ mvn spring-boot:run
 ---
 
 ## 📄 API Documentation
-
-Swagger UI:
 
 ```
 http://localhost:8080/swagger-ui/index.html
@@ -282,9 +333,9 @@ http://localhost:8080/swagger-ui/index.html
 * Handles money-related workflows safely
 * Applies production-level patterns:
 
-    * Idempotency
-    * Event-driven design
-    * Concurrency control
+  * Idempotency
+  * Event-driven design
+  * Concurrency control
 * Goes beyond CRUD into real system design
 
 ---
