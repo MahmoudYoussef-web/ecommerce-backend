@@ -18,7 +18,7 @@ import java.util.List;
 @AllArgsConstructor
 @Entity
 @Where(clause = "is_deleted = false")
-@Check(constraints = "price > 0 AND stock_quantity >= 0")
+@Check(constraints = "price > 0")
 @Table(
         name = "products",
         indexes = {
@@ -32,6 +32,9 @@ import java.util.List;
         }
 )
 public class Product extends BaseEntity {
+
+    @Version
+    private Long version;
 
     @NotBlank
     @Size(min = 2, max = 200)
@@ -104,13 +107,27 @@ public class Product extends BaseEntity {
 
     @Builder.Default
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<ProductImage> images = new ArrayList<>();
+    private List<ProductVariant> variants = new ArrayList<>();
 
+    @Builder.Default
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<ProductImage> images = new ArrayList<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "product", fetch = FetchType.LAZY)
     private List<Review> reviews = new ArrayList<>();
 
+    public void decreaseStock(int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be greater than zero");
+        }
+
+        if (this.stockQuantity < quantity) {
+            throw new IllegalStateException("Insufficient stock");
+        }
+
+        this.stockQuantity -= quantity;
+    }
 
     public BigDecimal getEffectivePrice() {
         if (discountedPrice != null &&

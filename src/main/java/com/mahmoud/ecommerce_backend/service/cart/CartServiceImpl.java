@@ -22,6 +22,7 @@ public class CartServiceImpl implements CartService {
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
+    private final ProductVariantRepository productVariantRepository;
     private final UserRepository userRepository;
     private final CartMapper cartMapper;
 
@@ -39,12 +40,8 @@ public class CartServiceImpl implements CartService {
     @Transactional
     public CartResponse addItem(AddToCartRequest request) {
 
-        if (request == null) {
-            throw new BadRequestException("Request must not be null");
-        }
-
-        if (request.getProductId() == null) {
-            throw new BadRequestException("ProductId must not be null");
+        if (request == null || request.getProductId() == null) {
+            throw new BadRequestException("Invalid request");
         }
 
         if (request.getQuantity() == null || request.getQuantity() <= 0) {
@@ -57,16 +54,28 @@ public class CartServiceImpl implements CartService {
                 .orElseGet(() -> createCart(user));
 
         Product product = productRepository.findById(request.getProductId())
-                .orElseThrow(() -> {
-                    log.warn("Product not found id={}", request.getProductId());
-                    return new ResourceNotFoundException("Product not found");
-                });
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
         if (product.getStatus() == ProductStatus.DRAFT) {
             throw new BadRequestException("Product is not available");
         }
 
-        CartItem item = cartItemRepository.findByCartIdAndProductId(cart.getId(), product.getId())
+        ProductVariant variant = null;
+
+        if (request.getVariantId() != null) {
+            variant = productVariantRepository.findById(request.getVariantId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Variant not found"));
+
+            if (!variant.getProduct().getId().equals(product.getId())) {
+                throw new BadRequestException("Variant does not belong to product");
+            }
+        } else if (product.getVariants() != null && !product.getVariants().isEmpty()) {
+            throw new BadRequestException("Product requires variant selection");
+        }
+
+        CartItem item = cartItemRepository
+                .findByCartIdAndProductIdAndVariantId(cart.getId(), product.getId(),
+                        variant != null ? variant.getId() : null)
                 .orElse(null);
 
         int newQuantity = request.getQuantity();
@@ -75,29 +84,35 @@ public class CartServiceImpl implements CartService {
             newQuantity = item.getQuantity() + request.getQuantity();
         }
 
-        if (product.getStockQuantity() < newQuantity) {
-            log.warn("Stock exceeded productId={}, requested={}, available={}",
-                    product.getId(), newQuantity, product.getStockQuantity());
-
-            throw new BadRequestException("Not enough stock available");
+        if (variant != null) {
+            if (variant.getStockQuantity() < newQuantity) {
+                throw new BadRequestException("Not enough variant stock");
+            }
+        } else {
+            if (product.getStockQuantity() < newQuantity) {
+                throw new BadRequestException("Not enough stock available");
+            }
         }
 
         if (item != null) {
             item.setQuantity(newQuantity);
-            item.setUnitPrice(product.getEffectivePrice());
+            item.setUnitPrice(
+                    variant != null ? variant.getEffectivePrice(product) : product.getEffectivePrice()
+            );
         } else {
             item = CartItem.builder()
                     .cart(cart)
                     .product(product)
-                    .unitPrice(product.getEffectivePrice())
+                    .variant(variant)
+                    .unitPrice(
+                            variant != null ? variant.getEffectivePrice(product) : product.getEffectivePrice()
+                    )
                     .quantity(request.getQuantity())
                     .build();
         }
 
         cartItemRepository.save(item);
-
-        log.info("Item added to cart userId={}, productId={}, quantity={}",
-                user.getId(), product.getId(), item.getQuantity());
+        cart.recalculateTotal();
 
         return cartMapper.toResponse(cart);
     }
@@ -106,12 +121,12 @@ public class CartServiceImpl implements CartService {
     @Transactional
     public CartResponse updateItem(UpdateCartItemRequest request) {
 
-        if (request == null) {
-            throw new BadRequestException("Request must not be null");
+        if (request == null || request.getProductId() == null) {
+            throw new BadRequestException("Invalid request");
         }
 
-        if (request.getProductId() == null) {
-            throw new BadRequestException("ProductId must not be null");
+        if (request.getQuantity() == null || request.getQuantity() < 0) {
+            throw new BadRequestException("Invalid quantity");
         }
 
         User user = getCurrentUser();
@@ -119,37 +134,38 @@ public class CartServiceImpl implements CartService {
         Cart cart = cartRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Cart not found"));
 
-        CartItem item = cartItemRepository.findByCartIdAndProductId(cart.getId(), request.getProductId())
+        CartItem item = cartItemRepository
+                .findByCartIdAndProductIdAndVariantId(cart.getId(), request.getProductId(), request.getVariantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Item not found"));
 
         Product product = item.getProduct();
-
-        if (product == null) {
-            throw new BadRequestException("Invalid cart item");
-        }
+        ProductVariant variant = item.getVariant();
 
         if (product.getStatus() == ProductStatus.DRAFT) {
             throw new BadRequestException("Product is not available");
         }
 
-        if (request.getQuantity() == null || request.getQuantity() < 0) {
-            throw new BadRequestException("Invalid quantity");
-        }
-
         if (request.getQuantity() == 0) {
-            cartItemRepository.delete(item);
+            cart.removeItem(request.getProductId(), request.getVariantId());
             return cartMapper.toResponse(cart);
         }
 
-        if (product.getStockQuantity() < request.getQuantity()) {
-            throw new BadRequestException("Not enough stock available");
+        if (variant != null) {
+            if (variant.getStockQuantity() < request.getQuantity()) {
+                throw new BadRequestException("Not enough variant stock");
+            }
+        } else {
+            if (product.getStockQuantity() < request.getQuantity()) {
+                throw new BadRequestException("Not enough stock available");
+            }
         }
 
         item.setQuantity(request.getQuantity());
-        item.setUnitPrice(product.getEffectivePrice());
+        item.setUnitPrice(
+                variant != null ? variant.getEffectivePrice(product) : product.getEffectivePrice()
+        );
 
-        log.info("Cart item updated userId={}, productId={}, quantity={}",
-                user.getId(), product.getId(), item.getQuantity());
+        cart.recalculateTotal();
 
         return cartMapper.toResponse(cart);
     }
@@ -157,6 +173,11 @@ public class CartServiceImpl implements CartService {
     @Override
     @Transactional
     public CartResponse removeItem(Long productId) {
+        throw new UnsupportedOperationException("Use removeItem(productId, variantId)");
+    }
+
+    @Transactional
+    public CartResponse removeItem(Long productId, Long variantId) {
 
         if (productId == null) {
             throw new BadRequestException("ProductId must not be null");
@@ -167,12 +188,7 @@ public class CartServiceImpl implements CartService {
         Cart cart = cartRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Cart not found"));
 
-        CartItem item = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Item not found"));
-
-        cartItemRepository.delete(item);
-
-        log.info("Item removed userId={}, productId={}", user.getId(), productId);
+        cart.removeItem(productId, variantId);
 
         return cartMapper.toResponse(cart);
     }
@@ -187,8 +203,7 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new ResourceNotFoundException("Cart not found"));
 
         cart.getCartItems().clear();
-
-        log.info("Cart cleared userId={}", user.getId());
+        cart.recalculateTotal();
     }
 
     private User getCurrentUser() {

@@ -4,107 +4,185 @@
 ![Spring Boot](https://img.shields.io/badge/SpringBoot-3.x-green)
 ![MySQL](https://img.shields.io/badge/MySQL-8-blue)
 ![JWT](https://img.shields.io/badge/Auth-JWT-yellow)
+![Stripe](https://img.shields.io/badge/Payment-Stripe-purple)
 ![Status](https://img.shields.io/badge/Status-Production--Ready-brightgreen)
 
-A production-grade E-commerce backend system built with Spring Boot, designed to simulate real-world business workflows including authentication, cart management, order processing, and payment handling.
+A **production-grade E-commerce backend system** built with Spring Boot, designed to simulate real-world business workflows including **authentication, cart management, order lifecycle, and secure payment processing using Stripe**.
 
 ---
 
-## 🚀 Key Highlights
+## 🎯 Project Overview
 
-* Scalable layered architecture (Controller → Service → Repository)
-* JWT Authentication with Access & Refresh Tokens
+This system models a real-world E-commerce platform where:
+
+* Users can browse and search products with advanced filtering
+* Products support **variants (price, stock, attributes)**
+* Users manage cart and place orders securely
+* Payments are processed via **Stripe Checkout**
+* System guarantees **data consistency, idempotency, and secure payment handling**
+
+> The goal is to demonstrate **real backend engineering practices**, not just CRUD.
+
+---
+
+## 🚀 Key Features
+
+### 🔐 Authentication & Security
+
+* JWT Authentication (Access & Refresh Tokens)
 * Role-Based Authorization (ADMIN / USER)
-* Advanced product filtering using dynamic queries (Specifications)
-* Standardized API response structure (`ApiResponse<T>`)
-* Global exception handling
-* DTO mapping using MapStruct
+* Stateless session design
+
+---
+
+### 🛍️ Product & Catalog System
+
+* Product management with categories
+* Advanced filtering (name, price range, category, stock)
 * Pagination support
-* Stateless and secure backend design
+* Variant-based product model (price & stock per variant)
 
 ---
 
-## 🧠 Production Improvements
+### 🛒 Cart System
 
-The system has been enhanced with real-world backend practices to ensure reliability, consistency, and security:
-
-* Input validation at service level (beyond annotations)
-* Cart validation (empty cart, invalid quantities)
-* Stock validation before order creation
-* Prevention of negative stock and inconsistent states
-* Order ownership validation (user isolation)
-* Payment idempotency (prevent duplicate payments)
-* Strict payment state transitions
-* Order and payment lifecycle synchronization
-* Defensive programming against null and invalid data
-* Structured logging for business-critical operations
+* Variant-aware cart (productId + variantId)
+* Quantity validation
+* Full cart lifecycle (add / update / remove / clear)
 
 ---
 
-## 📊 Business Rules
+### 📦 Order Management
 
-* A user can only access their own cart, orders, and payments
-* Orders can only be created from a non-empty cart
-* Products must be available (not DRAFT) to be added to cart or ordered
-* Stock is validated before order creation
-* Payment can only be created for PENDING orders
-* Each order can have only one payment
-* Payment status follows strict transitions:
-  * INITIATED → COMPLETED / FAILED / CANCELLED
-  * COMPLETED → REFUNDED / PARTIALLY_REFUNDED
-* Order status is updated automatically after successful payment
+* Order creation from cart snapshot
+* Address snapshot stored at purchase time
+* Full order lifecycle tracking
 
 ---
 
-## 📝 Logging Strategy
+### 💳 Payment System (Stripe Integration)
 
-The system uses structured logging to track important business events:
+* Stripe Checkout Session integration
+* Secure Webhook handling
+* Payment verification using:
 
-* Order creation and validation failures
-* Cart operations (add/update/remove)
-* Payment lifecycle events
-* Security-related actions (unauthorized access attempts)
-
-Logs are designed to support debugging and monitoring in production environments.
-
----
-
-## 🔄 Core Business Flows
-
-* User authenticates using JWT
-* User browses and filters products
-* User adds items to cart
-* User places an order
-* System calculates total and stores snapshot
-* Payment is created and updated
+    * Amount validation
+    * Currency validation
+    * Order ownership validation
+* Idempotent payment processing (duplicate-safe)
+* Event-driven order updates after payment
 
 ---
 
-## 🧰 Tech Stack
+### ⚙️ System Reliability
 
-* Java 21+
-* Spring Boot
-* Spring Data JPA
-* Spring Security
-* JWT
-* MySQL
-* Maven
-* Lombok
-* MapStruct
-* Swagger
+* Optimistic locking + retry strategy
+* Prevention of negative stock
+* Strict state transitions (Order & Payment)
+* Defensive programming (null safety, validation)
+
+---
+
+### 📊 API Design
+
+* Standardized response format (`ApiResponse<T>`)
+* Clean DTO-based architecture
+* Swagger API documentation
 
 ---
 
 ## 🏗️ Architecture
 
-Controller → Service → Repository → Entity  
-↘ DTO ↔ Mapper ↗
+The system follows a **layered architecture**:
+
+```text
+Client
+   ↓
+Controller → Service → Repository → Database
+   ↓
+Security Layer (JWT)
+   ↓
+Exception Handling Layer
+   ↓
+Event Layer (Payment → Order)
+```
+
+---
+
+### Key Design Decisions
+
+* Separation of concerns
+* DTO pattern for API contracts
+* Centralized exception handling
+* Event-driven architecture for payment flow
+* Payment provider abstraction (Stripe-ready)
+
+---
+
+## 🔐 Payment Flow (Real-World)
+
+```text
+User → Backend → Stripe Checkout
+                    ↓
+                 Stripe UI
+                    ↓
+            Payment Completed
+                    ↓
+        Stripe → Webhook → Backend
+                    ↓
+          PaymentService
+                    ↓
+            Event Published
+                    ↓
+         Order Status Updated
+```
+
+---
+
+## 📊 Business Rules
+
+* Users can only access their own cart, orders, and payments
+* Orders must be created from a non-empty cart
+* Stock is validated before order creation
+* Payment allowed only for `PENDING` orders
+* Each order has exactly one payment
+* Payment is verified using Stripe data (NOT client input)
+* Duplicate payment processing is prevented (idempotency)
+* Order status updates only through controlled transitions
+
+---
+
+## ⚠️ Exception Handling Strategy
+
+Centralized using `@RestControllerAdvice`
+
+### Example Error Response
+
+```json
+{
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Validation failed",
+  "path": "/api/example",
+  "timestamp": "2026-03-27T19:56:01"
+}
+```
+
+---
+
+### Covered Scenarios
+
+* Validation errors
+* Business rule violations
+* Unauthorized access
+* Payment failures
+* Database constraint violations
 
 ---
 
 ## 📁 Project Structure
 
-```bash
+```text
 src/main/java/com/mahmoud/ecommerce_backend
 ├── controller
 ├── service
@@ -115,20 +193,27 @@ src/main/java/com/mahmoud/ecommerce_backend
 ├── security
 ├── exception
 ├── config
-````
+```
 
 ---
 
-## 🔐 Security
+## 🧰 Tech Stack
 
-* JWT Authentication
-* Access & Refresh Tokens
-* Role-based authorization
-* Stateless session
+| Category   | Technology                  |
+| ---------- | --------------------------- |
+| Language   | Java 21                     |
+| Framework  | Spring Boot                 |
+| Security   | Spring Security + JWT       |
+| ORM        | Spring Data JPA (Hibernate) |
+| Database   | MySQL                       |
+| Payment    | Stripe                      |
+| Mapping    | MapStruct                   |
+| Build Tool | Maven                       |
+| Docs       | Swagger (OpenAPI)           |
 
 ---
 
-## 🔗 REST API Endpoints
+## 🔗 API Overview
 
 All endpoints are prefixed with:
 
@@ -136,110 +221,19 @@ All endpoints are prefixed with:
 /api
 ```
 
----
+### Core Modules
 
-### 🔐 Auth
-
-| Method | Endpoint       | Description          |
-| ------ | -------------- | -------------------- |
-| POST   | /auth/register | Register new user    |
-| POST   | /auth/login    | Login and get tokens |
-| POST   | /auth/refresh  | Refresh token        |
-| POST   | /auth/logout   | Logout               |
-
----
-
-### 📦 Products
-
-| Method | Endpoint                        | Description              |
-| ------ | ------------------------------- | ------------------------ |
-| GET    | /products                       | Get all products         |
-| GET    | /products/{id}                  | Get product by ID        |
-| GET    | /products/search                | Advanced filtering       |
-| GET    | /products/category/{categoryId} | Get products by category |
-| POST   | /products                       | Create product (ADMIN)   |
-| PUT    | /products/{id}                  | Update product (ADMIN)   |
-| DELETE | /products/{id}                  | Delete product (ADMIN)   |
+* Auth → `/auth/*`
+* Products → `/products/*`
+* Cart → `/cart/*`
+* Orders → `/orders/*`
+* Payments → `/payments/*`
+* Wishlist → `/wishlist/*`
+* Reviews → `/reviews/*`
 
 ---
 
-### 🗂️ Categories
-
-| Method | Endpoint           | Description        |
-| ------ | ------------------ | ------------------ |
-| GET    | /categories        | Get all categories |
-| GET    | /categories/{slug} | Get category       |
-| POST   | /categories        | Create (ADMIN)     |
-| PUT    | /categories/{id}   | Update (ADMIN)     |
-| DELETE | /categories/{id}   | Delete (ADMIN)     |
-
----
-
-### 🛒 Cart
-
-| Method | Endpoint                | Description     |
-| ------ | ----------------------- | --------------- |
-| GET    | /cart                   | Get cart        |
-| POST   | /cart/items             | Add item        |
-| PUT    | /cart/items/{productId} | Update quantity |
-| DELETE | /cart/items/{productId} | Remove item     |
-| DELETE | /cart                   | Clear cart      |
-
----
-
-### 📦 Orders
-
-| Method | Endpoint     | Description     |
-| ------ | ------------ | --------------- |
-| POST   | /orders      | Create order    |
-| GET    | /orders      | Get user orders |
-| GET    | /orders/{id} | Get order by ID |
-
----
-
-### 💳 Payments
-
-| Method | Endpoint              | Description           |
-| ------ | --------------------- | --------------------- |
-| POST   | /payments             | Create payment        |
-| PUT    | /payments/{id}/status | Update payment status |
-
----
-
-### ❤️ Wishlist
-
-| Method | Endpoint                    | Description    |
-| ------ | --------------------------- | -------------- |
-| GET    | /wishlist                   | Get wishlist   |
-| POST   | /wishlist/items/{productId} | Add product    |
-| DELETE | /wishlist/items/{productId} | Remove product |
-
----
-
-### ⭐ Reviews
-
-| Method | Endpoint                     | Description         |
-| ------ | ---------------------------- | ------------------- |
-| POST   | /reviews                     | Add review          |
-| GET    | /reviews/product/{productId} | Get product reviews |
-
----
-
-## 🗄️ Database Design
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/fd86ce51-0360-4806-9d3c-19afde15fb5d" width="900"/>
-</p>
-
----
-
-## 📄 API Documentation
-
-[http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
-
----
-
-## ⚡ Quick Run
+## 🧪 Running the Project
 
 ```bash
 git clone https://github.com/MahmoudYoussef-web/ecommerce-backend.git
@@ -249,18 +243,52 @@ mvn spring-boot:run
 
 ---
 
-## 🚀 Future Improvements
+## 📄 API Documentation
 
-* Docker containerization
-* Deployment to cloud (AWS / Render / Railway)
-* Integration with payment gateways (Stripe / PayPal)
-* Caching (Redis)
-* Unit and integration testing
+Swagger UI:
+
+```
+http://localhost:8080/swagger-ui/index.html
+```
+
+---
+
+## 🧠 System Design Highlights
+
+* Event-driven payment processing
+* Idempotent webhook handling
+* Variant-based commerce modeling
+* Concurrency-safe stock management
+* Secure external integration (Stripe)
+
+---
+
+## 💣 Why This Project Matters
+
+* Demonstrates real backend engineering skills
+* Handles money-related workflows safely
+* Applies production-level patterns:
+
+    * Idempotency
+    * Event-driven design
+    * Concurrency control
+* Goes beyond CRUD into real system design
 
 ---
 
 ## 👨‍💻 Author
 
-Mahmoud Youssef
-Backend Developer | Spring Boot
+**Mahmoud Youssef**
+Backend Developer (Spring Boot)
 
+---
+
+## 🎯 Final Result
+
+A backend system that is:
+
+* ✅ Secure
+* ✅ Scalable
+* ✅ Consistent
+* ✅ Production-ready
+* ✅ Real-world applicable

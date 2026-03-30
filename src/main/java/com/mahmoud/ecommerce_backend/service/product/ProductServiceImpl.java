@@ -9,6 +9,8 @@ import com.mahmoud.ecommerce_backend.repository.*;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"products", "products_page", "products_search"}, allEntries = true)
     public ProductResponse createProduct(CreateProductRequest request) {
 
         if (request == null) {
@@ -74,6 +77,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"products", "products_page", "products_search"}, allEntries = true)
     public ProductResponse updateProduct(Long id, UpdateProductRequest request) {
 
         if (request == null) {
@@ -119,6 +123,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Cacheable(value = "products", key = "'id:' + #id", unless = "#result == null")
     public ProductResponse getById(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
@@ -127,12 +132,18 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Cacheable(value = "products_page",
+            key = "'all:' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()",
+            unless = "#result == null || #result.isEmpty()")
     public Page<ProductResponse> getAll(Pageable pageable) {
         return productRepository.findAll(pageable)
                 .map(productMapper::toResponse);
     }
 
     @Override
+    @Cacheable(value = "products_page",
+            key = "'cat:' + #categoryId + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()",
+            unless = "#result == null || #result.isEmpty()")
     public Page<ProductResponse> getByCategory(Long categoryId, Pageable pageable) {
         return productRepository.findByCategoryId(categoryId, pageable)
                 .map(productMapper::toResponse);
@@ -140,6 +151,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"products", "products_page", "products_search"}, allEntries = true)
     public void deleteProduct(Long id) {
 
         Product product = productRepository.findById(id)
@@ -156,6 +168,9 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Cacheable(value = "products_search",
+            key = "'search:' + #name + ':' + #minPrice + ':' + #maxPrice + ':' + #categoryId + ':' + #inStock + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + #pageable.sort.toString()",
+            unless = "#result == null || #result.isEmpty()")
     public Page<ProductResponse> searchProducts(
             String name,
             BigDecimal minPrice,

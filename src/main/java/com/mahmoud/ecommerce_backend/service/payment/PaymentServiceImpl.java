@@ -4,9 +4,10 @@ import com.mahmoud.ecommerce_backend.dto.payment.PaymentResponse;
 import com.mahmoud.ecommerce_backend.entity.Order;
 import com.mahmoud.ecommerce_backend.entity.Payment;
 import com.mahmoud.ecommerce_backend.entity.User;
+import com.mahmoud.ecommerce_backend.enums.OrderStatus;
 import com.mahmoud.ecommerce_backend.enums.PaymentMethod;
 import com.mahmoud.ecommerce_backend.enums.PaymentStatus;
-import com.mahmoud.ecommerce_backend.enums.OrderStatus;
+import com.mahmoud.ecommerce_backend.event.payment.PaymentCompletedEvent;
 import com.mahmoud.ecommerce_backend.exception.BadRequestException;
 import com.mahmoud.ecommerce_backend.exception.ForbiddenException;
 import com.mahmoud.ecommerce_backend.exception.ResourceNotFoundException;
@@ -16,11 +17,14 @@ import com.mahmoud.ecommerce_backend.repository.PaymentRepository;
 import com.mahmoud.ecommerce_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 @Service
@@ -32,50 +36,43 @@ public class PaymentServiceImpl implements PaymentService {
     private final OrderRepository orderRepository;
     private final PaymentMapper paymentMapper;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final PaymentProvider paymentProvider;
 
     @Override
     @Transactional
     public PaymentResponse createPayment(Long orderId, PaymentMethod method) {
 
-        if (orderId == null) {
-            throw new BadRequestException("OrderId must not be null");
-        }
-
-        if (method == null) {
-            throw new BadRequestException("Payment method must not be null");
+        if (orderId == null || method == null) {
+            throw new BadRequestException("Invalid request");
         }
 
         User user = getCurrentUser();
 
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> {
-                    log.warn("Order not found id={}", orderId);
-                    return new ResourceNotFoundException("Order not found");
-                });
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
 
         if (!order.getUser().getId().equals(user.getId())) {
-            log.warn("Unauthorized payment attempt userId={}, orderId={}", user.getId(), orderId);
-            throw new ForbiddenException("You are not allowed to pay for this order");
+            throw new ForbiddenException("Unauthorized");
         }
 
         if (order.getStatus() != OrderStatus.PENDING) {
-            throw new BadRequestException("Order is not eligible for payment");
+            throw new BadRequestException("Payment allowed only for PENDING orders");
         }
 
         if (paymentRepository.findByOrderId(orderId).isPresent()) {
-            throw new BadRequestException("Payment already exists for this order");
+            throw new BadRequestException("Payment already exists");
         }
 
         Payment payment = Payment.builder()
                 .order(order)
                 .paymentMethod(method)
                 .amount(order.getTotalAmount())
-                .status(PaymentStatus.INITIATED)
+                .currency("USD")
+                .status(PaymentStatus.PENDING)
                 .build();
 
         paymentRepository.save(payment);
-
-        log.info("Payment initiated orderId={}, userId={}", orderId, user.getId());
 
         return paymentMapper.toResponse(payment);
     }
@@ -84,62 +81,148 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     public PaymentResponse updateStatus(Long paymentId, PaymentStatus status) {
 
-        if (paymentId == null) {
-            throw new BadRequestException("PaymentId must not be null");
-        }
-
-        if (status == null) {
-            throw new BadRequestException("Payment status must not be null");
+        if (paymentId == null || status == null) {
+            throw new BadRequestException("Invalid request");
         }
 
         Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> {
-                    log.warn("Payment not found id={}", paymentId);
-                    return new ResourceNotFoundException("Payment not found");
-                });
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
 
-        PaymentStatus currentStatus = payment.getStatus();
-
-
-        if (currentStatus == status) {
-            log.info("Duplicate status update ignored paymentId={}, status={}", paymentId, status);
-            return paymentMapper.toResponse(payment);
-        }
-
-        if (!isValidTransition(currentStatus, status)) {
-            throw new BadRequestException(
-                    "Invalid payment status transition from " + currentStatus + " to " + status
-            );
-        }
-
-        payment.setStatus(status);
-
-        if (status == PaymentStatus.COMPLETED) {
-            payment.setPaidAt(Instant.now());
-            payment.getOrder().setStatus(OrderStatus.CONFIRMED);
-
-            log.info("Payment completed orderId={}", payment.getOrder().getId());
-        }
-
-        if (status == PaymentStatus.FAILED) {
-            payment.setFailureReason("Payment failed at " + Instant.now());
-            log.warn("Payment failed orderId={}", payment.getOrder().getId());
-        }
+        changeStatus(payment, status, null);
 
         return paymentMapper.toResponse(payment);
+    }
+
+    @Override
+    @Transactional
+    public void processWebhook(String eventId, Long paymentId, PaymentStatus status, String reference) {
+
+        if (eventId == null || paymentId == null || status == null) {
+            throw new BadRequestException("Invalid webhook payload");
+        }
+
+        if (paymentRepository.existsByEventId(eventId)) {
+            log.info("Duplicate webhook ignored eventId={}", eventId);
+            return;
+        }
+
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
+
+        try {
+            payment.setEventId(eventId);
+            paymentRepository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            log.warn("Duplicate eventId prevented eventId={}", eventId);
+            return;
+        }
+
+        changeStatus(payment, status, reference);
+    }
+
+    @Transactional
+    public void processStripeWebhook(String eventId,
+                                     Long paymentId,
+                                     PaymentStatus status,
+                                     String reference,
+                                     BigDecimal amount,
+                                     String currency) {
+
+        if (eventId == null || paymentId == null || status == null || amount == null || currency == null) {
+            throw new BadRequestException("Invalid Stripe webhook payload");
+        }
+
+        if (paymentRepository.existsByEventId(eventId)) {
+            log.info("Duplicate Stripe webhook ignored eventId={}", eventId);
+            return;
+        }
+
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
+
+        if (payment.getAmount().compareTo(amount) != 0) {
+            throw new ForbiddenException("Amount mismatch");
+        }
+
+        if (!payment.getCurrency().equalsIgnoreCase(currency)) {
+            throw new ForbiddenException("Currency mismatch");
+        }
+
+        try {
+            payment.setEventId(eventId);
+            paymentRepository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            log.warn("Duplicate eventId prevented eventId={}", eventId);
+            return;
+        }
+
+        changeStatus(payment, status, reference);
+    }
+
+    @Override
+    @Transactional
+    public String createCheckoutSession(Long paymentId) {
+
+        if (paymentId == null) {
+            throw new BadRequestException("PaymentId required");
+        }
+
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
+
+        User user = getCurrentUser();
+
+        if (!payment.getOrder().getUser().getId().equals(user.getId())) {
+            throw new ForbiddenException("Unauthorized");
+        }
+
+        if (payment.getStatus() != PaymentStatus.PENDING) {
+            throw new BadRequestException("Invalid payment state");
+        }
+
+        if (payment.getOrder().getStatus() != OrderStatus.PENDING) {
+            throw new BadRequestException("Order is not payable");
+        }
+
+        return paymentProvider.createCheckoutSession(paymentId);
+    }
+
+    private void changeStatus(Payment payment, PaymentStatus newStatus, String reference) {
+
+        if (!isValidTransition(payment.getStatus(), newStatus)) {
+            throw new BadRequestException("Invalid payment status transition");
+        }
+
+        payment.setStatus(newStatus);
+
+        if (reference != null) {
+            payment.setGatewayReference(reference);
+        }
+
+        if (newStatus == PaymentStatus.COMPLETED) {
+            payment.setPaidAt(Instant.now());
+
+            try {
+                eventPublisher.publishEvent(
+                        new PaymentCompletedEvent(this, payment.getId(), payment.getOrder().getId())
+                );
+            } catch (Exception ex) {
+                log.error("Event publish failed paymentId={}", payment.getId(), ex);
+            }
+        }
+
+        if (newStatus == PaymentStatus.FAILED) {
+            payment.setFailureReason("Payment failed at " + Instant.now());
+        }
     }
 
     private boolean isValidTransition(PaymentStatus current, PaymentStatus next) {
 
         return switch (current) {
-            case PENDING -> next == PaymentStatus.INITIATED;
-            case INITIATED -> next == PaymentStatus.COMPLETED
-                    || next == PaymentStatus.FAILED
-                    || next == PaymentStatus.CANCELLED;
-            case COMPLETED -> next == PaymentStatus.REFUNDED
-                    || next == PaymentStatus.PARTIALLY_REFUNDED;
-            case FAILED, CANCELLED, EXPIRED -> false;
-            case REFUNDED, PARTIALLY_REFUNDED -> false;
+            case PENDING -> next == PaymentStatus.INITIATED || next == PaymentStatus.FAILED || next == PaymentStatus.CANCELLED;
+            case INITIATED -> next == PaymentStatus.COMPLETED || next == PaymentStatus.FAILED || next == PaymentStatus.CANCELLED;
+            case COMPLETED -> next == PaymentStatus.REFUNDED || next == PaymentStatus.PARTIALLY_REFUNDED;
+            default -> false;
         };
     }
 
@@ -148,7 +231,7 @@ public class PaymentServiceImpl implements PaymentService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null || authentication.getName() == null) {
-            throw new ForbiddenException("Unauthenticated user");
+            throw new ForbiddenException("Unauthenticated");
         }
 
         return userRepository.findByEmail(authentication.getName())

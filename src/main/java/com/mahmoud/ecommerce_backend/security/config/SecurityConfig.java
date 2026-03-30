@@ -40,6 +40,7 @@ public class SecurityConfig {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
         provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder());
+        provider.setHideUserNotFoundExceptions(true);
         return provider;
     }
 
@@ -51,6 +52,7 @@ public class SecurityConfig {
                 .exceptionHandling(e -> e.authenticationEntryPoint(authEntryPoint))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/swagger-ui/**",
@@ -59,12 +61,16 @@ public class SecurityConfig {
                                 "/v3/api-docs.yaml"
                         ).permitAll()
 
+                        .requestMatchers("/api/payments/webhook").permitAll()
 
                         .requestMatchers("/api/products/**", "/api/categories/**")
                         .permitAll()
 
+                        .requestMatchers("/api/payments/checkout/**").authenticated()
+
                         .requestMatchers("/api/payments/**")
                         .authenticated()
+
                         .anyRequest().authenticated()
                 );
 

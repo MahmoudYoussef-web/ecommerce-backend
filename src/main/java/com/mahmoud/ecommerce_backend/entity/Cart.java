@@ -53,13 +53,11 @@ public class Cart extends BaseEntity {
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
-
     public int getItemCount() {
         return cartItems.stream()
                 .mapToInt(item -> item.getQuantity() != null ? item.getQuantity() : 0)
                 .sum();
     }
-
 
     public void recalculateTotal() {
         this.totalAmount = cartItems.stream()
@@ -67,12 +65,16 @@ public class Cart extends BaseEntity {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-
     public void addItem(CartItem item) {
         if (item == null) return;
 
         for (CartItem existing : cartItems) {
-            if (existing.getProduct().getId().equals(item.getProduct().getId())) {
+            boolean sameProduct = existing.getProduct().getId().equals(item.getProduct().getId());
+            boolean sameVariant = (existing.getVariant() == null && item.getVariant() == null) ||
+                    (existing.getVariant() != null && item.getVariant() != null &&
+                            existing.getVariant().getId().equals(item.getVariant().getId()));
+
+            if (sameProduct && sameVariant) {
                 existing.setQuantity(existing.getQuantity() + item.getQuantity());
                 existing.syncTotalPrice();
                 recalculateTotal();
@@ -85,11 +87,21 @@ public class Cart extends BaseEntity {
         recalculateTotal();
     }
 
-    public void removeItem(CartItem item) {
-        if (item == null) return;
+    public void removeItem(Long productId, Long variantId) {
 
-        cartItems.remove(item);
-        item.setCart(null);
+        cartItems.removeIf(item -> {
+            boolean sameProduct = item.getProduct().getId().equals(productId);
+            boolean sameVariant = (variantId == null && item.getVariant() == null) ||
+                    (variantId != null && item.getVariant() != null &&
+                            variantId.equals(item.getVariant().getId()));
+
+            if (sameProduct && sameVariant) {
+                item.setCart(null);
+                return true;
+            }
+            return false;
+        });
+
         recalculateTotal();
     }
 }

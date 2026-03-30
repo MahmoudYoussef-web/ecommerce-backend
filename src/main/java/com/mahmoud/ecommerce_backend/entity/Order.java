@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Getter
-@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -116,6 +115,64 @@ public class Order extends BaseEntity {
         }
     }
 
+    public OrderStatus getStatus() {
+        return status;
+    }
+
+    // ✅ FIX: controlled setter (only for aggregate integrity)
+    public void assignUser(User user) {
+        if (user == null) {
+            throw new IllegalArgumentException("User cannot be null");
+        }
+        this.user = user;
+    }
+
+    public void markAsPaid() {
+        changeStatus(OrderStatus.PAID);
+    }
+
+    public void markAsCancelled(String reason) {
+        this.cancellationReason = reason;
+        this.cancelledAt = Instant.now();
+        changeStatus(OrderStatus.CANCELLED);
+    }
+
+    public void markAsShipped(String carrier, String trackingNumber) {
+        this.carrier = carrier;
+        this.trackingNumber = trackingNumber;
+        this.shippedAt = Instant.now();
+        changeStatus(OrderStatus.SHIPPED);
+    }
+
+    public void markAsDelivered() {
+        this.deliveredAt = Instant.now();
+        changeStatus(OrderStatus.DELIVERED);
+    }
+
+    private void changeStatus(OrderStatus newStatus) {
+
+        if (newStatus == null) {
+            throw new IllegalStateException("Order status cannot be null");
+        }
+
+        if (!isValidTransition(this.status, newStatus)) {
+            throw new IllegalStateException("Invalid order status transition: " + this.status + " -> " + newStatus);
+        }
+
+        this.status = newStatus;
+    }
+
+    private boolean isValidTransition(OrderStatus current, OrderStatus next) {
+
+        return switch (current) {
+            case PENDING -> next == OrderStatus.PAID || next == OrderStatus.CANCELLED;
+            case PAID -> next == OrderStatus.SHIPPED || next == OrderStatus.CANCELLED;
+            case SHIPPED -> next == OrderStatus.DELIVERED;
+            case DELIVERED -> next == OrderStatus.REFUNDED;
+            default -> false;
+        };
+    }
+
     public void addItem(OrderItem item) {
         if (item == null) return;
 
@@ -146,7 +203,6 @@ public class Order extends BaseEntity {
                 .subtract(discount)
                 .add(shipping)
                 .add(tax);
-
 
         this.totalAmount = calculatedTotal.max(BigDecimal.ZERO);
     }

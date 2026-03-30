@@ -23,10 +23,14 @@ import java.time.Instant;
                 @Index(name = "idx_payment_order", columnList = "order_id", unique = true),
                 @Index(name = "idx_payment_status", columnList = "status"),
                 @Index(name = "idx_payment_gateway_ref", columnList = "gateway_reference"),
-                @Index(name = "idx_payment_method", columnList = "payment_method")
+                @Index(name = "idx_payment_method", columnList = "payment_method"),
+                @Index(name = "idx_payment_event_id", columnList = "event_id", unique = true)
         }
 )
 public class Payment extends BaseEntity {
+
+    @Version
+    private Long version;
 
     @NotNull
     @OneToOne(fetch = FetchType.LAZY, optional = false)
@@ -64,6 +68,9 @@ public class Payment extends BaseEntity {
     @Column(name = "gateway_response", columnDefinition = "TEXT")
     private String gatewayResponse;
 
+    @Column(name = "event_id", unique = true, length = 255)
+    private String eventId;
+
     @Column(name = "paid_at")
     private Instant paidAt;
 
@@ -77,7 +84,6 @@ public class Payment extends BaseEntity {
 
     @Column(name = "failure_reason", length = 500)
     private String failureReason;
-
 
     @PrePersist
     @PreUpdate
