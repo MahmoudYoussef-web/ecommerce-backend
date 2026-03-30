@@ -232,6 +232,19 @@ All endpoints are prefixed with:
 * Reviews → `/reviews/*`
 
 ---
+## 🗄️ Database Design
+
+<p align="center">
+ <img width="1907" height="1259" alt="ecommerce-backend" src="https://github.com/user-attachments/assets/186258f2-7ef5-4a8d-a731-a5d7df914e11" />
+</p>
+
+
+The database is designed to support:
+
+- Product variants (price & stock per variant)
+- Order snapshot consistency
+- Idempotent payment handling
+- Scalable relationships between core entities
 
 ## 🧪 Running the Project
 
