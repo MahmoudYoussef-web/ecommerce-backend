@@ -32,23 +32,11 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         try {
             String jwt = parseJwt(request);
 
-            if (jwt != null) {
-
-                if (!jwtUtils.validate(jwt)) {
-                    log.warn("Invalid JWT token");
-                    filterChain.doFilter(request, response);
-                    return;
-                }
+            if (jwt != null && jwtUtils.validate(jwt)) {
 
                 String email = jwtUtils.extractUsername(jwt);
 
-                if (email == null) {
-                    log.warn("JWT does not contain subject");
-                    filterChain.doFilter(request, response);
-                    return;
-                }
-
-                if (SecurityContextHolder.getContext().getAuthentication() == null) {
+                if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
                     var userDetails = userDetailsService.loadUserByUsername(email);
 
@@ -61,21 +49,14 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                     SecurityContextHolder.getContext().setAuthentication(auth);
-
-                    log.debug("Authenticated user: {}", email);
                 }
             }
 
         } catch (ExpiredJwtException ex) {
-            log.warn("JWT expired: {}", ex.getMessage());
             SecurityContextHolder.clearContext();
-
         } catch (JwtException ex) {
-            log.warn("JWT error: {}", ex.getMessage());
             SecurityContextHolder.clearContext();
-
         } catch (Exception ex) {
-            log.error("Unexpected authentication error", ex);
             SecurityContextHolder.clearContext();
         }
 
@@ -85,12 +66,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     private String parseJwt(HttpServletRequest request) {
         String header = request.getHeader("Authorization");
 
-        if (header == null) {
-            return null;
-        }
-
-        if (!header.startsWith("Bearer ")) {
-            log.warn("Invalid Authorization header format");
+        if (header == null || !header.startsWith("Bearer ")) {
             return null;
         }
 

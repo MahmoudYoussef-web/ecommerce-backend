@@ -23,12 +23,12 @@ public interface OrderMapper {
     List<OrderItemResponse> toItemResponses(List<OrderItem> items);
 
     @Mapping(target = "productId", source = "productId")
+    @Mapping(target = "variantId", source = "variantId")
     @Mapping(target = "productName", source = "productName")
     @Mapping(target = "productSku", source = "productSku")
     @Mapping(target = "productImageUrl", source = "productImageUrl")
     @Mapping(target = "priceAtPurchase", source = "priceAtPurchase")
     OrderItemResponse toItemResponse(OrderItem item);
-
 
     @Mapping(target = "street", source = "addressLine1")
     @Mapping(target = "zipCode", source = "postalCode")
@@ -37,7 +37,6 @@ public interface OrderMapper {
     com.mahmoud.ecommerce_backend.dto.order.AddressSnapshot map(
             com.mahmoud.ecommerce_backend.entity.AddressSnapshot snapshot
     );
-
 
     AddressSnapshot toSnapshot(Address address);
 

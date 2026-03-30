@@ -8,5 +8,6 @@ import lombok.*;
 @AllArgsConstructor
 public class UpdateCartItemRequest {
     private Long productId;
+    private Long variantId;
     private Integer quantity;
 }

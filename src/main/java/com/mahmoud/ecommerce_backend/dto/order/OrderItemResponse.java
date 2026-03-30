@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class OrderItemResponse {
     private Long productId;
+    private Long variantId;
     private String productName;
     private String productSku;
     private String productImageUrl;

@@ -89,7 +89,7 @@ public class User extends BaseEntity {
     public void addOrder(Order order) {
         if (order == null) return;
         orders.add(order);
-        order.setUser(this);
+        order.assignUser(this);
     }
 
     public void addAddress(Address address) {
@@ -115,6 +115,4 @@ public class User extends BaseEntity {
             email = email.toLowerCase().trim();
         }
     }
-
-
 }

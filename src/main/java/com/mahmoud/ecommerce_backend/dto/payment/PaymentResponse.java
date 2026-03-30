@@ -10,8 +10,10 @@ import com.mahmoud.ecommerce_backend.enums.PaymentStatus;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PaymentResponse {
+
     private Long id;
     private BigDecimal amount;
     private PaymentMethod method;
     private PaymentStatus status;
+    private String checkoutUrl;
 }

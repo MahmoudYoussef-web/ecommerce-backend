@@ -20,12 +20,13 @@ import java.math.BigDecimal;
         name = "cart_items",
         indexes = {
                 @Index(name = "idx_cart_item_cart", columnList = "cart_id"),
-                @Index(name = "idx_cart_item_product", columnList = "product_id")
+                @Index(name = "idx_cart_item_product", columnList = "product_id"),
+                @Index(name = "idx_cart_item_variant", columnList = "variant_id")
         },
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uq_cart_item_cart_product",
-                        columnNames = {"cart_id", "product_id"}
+                        name = "uq_cart_item_cart_product_variant",
+                        columnNames = {"cart_id", "product_id", "variant_id"}
                 )
         }
 )
@@ -49,6 +50,13 @@ public class CartItem extends BaseEntity {
     )
     private Product product;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "variant_id",
+            foreignKey = @ForeignKey(name = "fk_cart_item_variant")
+    )
+    private ProductVariant variant;
+
     @Min(1)
     @Column(name = "quantity", nullable = false)
     private Integer quantity;
@@ -64,7 +72,6 @@ public class CartItem extends BaseEntity {
     @Digits(integer = 10, fraction = 2)
     @Column(name = "total_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalPrice;
-
 
     @PrePersist
     @PreUpdate

@@ -19,6 +19,7 @@ public interface CartMapper {
     List<CartItemResponse> toItemResponses(List<CartItem> cartItems);
 
     @Mapping(target = "productId", source = "product.id")
+    @Mapping(target = "variantId", source = "variant.id")
     @Mapping(target = "productName", source = "product.name")
     @Mapping(target = "unitPrice", source = "unitPrice")
     @Mapping(target = "imageUrl", expression = "java(extractImage(cartItem))")

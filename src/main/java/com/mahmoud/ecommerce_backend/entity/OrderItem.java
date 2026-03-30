@@ -21,6 +21,7 @@ import java.math.BigDecimal;
         indexes = {
                 @Index(name = "idx_order_item_order", columnList = "order_id"),
                 @Index(name = "idx_order_item_product", columnList = "product_id_ref"),
+                @Index(name = "idx_order_item_variant", columnList = "variant_id"),
                 @Index(name = "idx_order_item_created", columnList = "created_at")
         }
 )
@@ -38,6 +39,9 @@ public class OrderItem extends BaseEntity {
     @NotNull
     @Column(name = "product_id_ref", nullable = false)
     private Long productId;
+
+    @Column(name = "variant_id")
+    private Long variantId;
 
     @NotBlank
     @Column(name = "product_name", nullable = false, length = 200)

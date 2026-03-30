@@ -52,6 +52,19 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- STRIPE (FIXED VERSION) -->
+        <dependency>
+            <groupId>com.stripe</groupId>
+            <artifactId>stripe-java</artifactId>
+            <version>25.2.0</version>
+        </dependency>
+
+        <!-- REDIS -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <!-- LOMBOK -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -107,7 +120,6 @@
     <build>
         <plugins>
 
-            <!-- COMPILER (المهم جداً 🔥) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -118,21 +130,18 @@
 
                     <annotationProcessorPaths>
 
-                        <!-- Lombok -->
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
                             <version>1.18.30</version>
                         </path>
 
-                        <!-- MapStruct -->
                         <path>
                             <groupId>org.mapstruct</groupId>
                             <artifactId>mapstruct-processor</artifactId>
                             <version>${mapstruct.version}</version>
                         </path>
 
-                        <!-- Lombok + MapStruct binding -->
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok-mapstruct-binding</artifactId>
@@ -143,7 +152,6 @@
                 </configuration>
             </plugin>
 
-            <!-- SPRING BOOT -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
