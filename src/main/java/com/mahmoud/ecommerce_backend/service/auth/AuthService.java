@@ -1,8 +1,6 @@
 package com.mahmoud.ecommerce_backend.service.auth;
 
-import com.mahmoud.ecommerce_backend.dto.auth.AuthResponse;
-import com.mahmoud.ecommerce_backend.dto.auth.LoginRequest;
-import com.mahmoud.ecommerce_backend.dto.auth.RegisterRequest;
+import com.mahmoud.ecommerce_backend.dto.auth.*;
 
 public interface AuthService {
 
@@ -10,7 +8,7 @@ public interface AuthService {
 
     AuthResponse login(LoginRequest request);
 
-    AuthResponse refreshToken(String refreshToken);
+    AuthResponse refreshToken(RefreshTokenRequest request);
 
-    void logout(String refreshToken);
+    void logout(LogoutRequest request);
 }

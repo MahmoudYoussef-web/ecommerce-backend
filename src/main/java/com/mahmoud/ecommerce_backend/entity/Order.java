@@ -9,14 +9,13 @@ import org.hibernate.annotations.Where;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Getter
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 @Entity
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Builder
 @Where(clause = "is_deleted = false")
 @Check(constraints = "total_amount >= 0 AND subtotal >= 0")
 @Table(
@@ -37,173 +36,214 @@ public class Order extends BaseEntity {
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
-            name = "user_id",
-            nullable = false,
-            foreignKey = @ForeignKey(name = "fk_order_user")
-    )
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     @NotNull
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(nullable = false)
+    @Builder.Default
     private OrderStatus status = OrderStatus.PENDING;
 
     @NotNull
-    @Column(name = "subtotal", nullable = false, precision = 12, scale = 2)
+    @Column(nullable = false, precision = 12, scale = 2)
+    @Builder.Default
     private BigDecimal subtotal = BigDecimal.ZERO;
 
     @NotNull
-    @Column(name = "discount_amount", nullable = false, precision = 12, scale = 2)
+    @Column(nullable = false, precision = 12, scale = 2)
+    @Builder.Default
     private BigDecimal discountAmount = BigDecimal.ZERO;
 
     @NotNull
-    @Column(name = "shipping_cost", nullable = false, precision = 12, scale = 2)
+    @Column(nullable = false, precision = 12, scale = 2)
+    @Builder.Default
     private BigDecimal shippingCost = BigDecimal.ZERO;
 
     @NotNull
-    @Column(name = "tax_amount", nullable = false, precision = 12, scale = 2)
+    @Column(nullable = false, precision = 12, scale = 2)
+    @Builder.Default
     private BigDecimal taxAmount = BigDecimal.ZERO;
 
     @NotNull
-    @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
+    @Column(nullable = false, precision = 12, scale = 2)
+    @Builder.Default
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
-    @Column(name = "coupon_code", length = 50)
+    @Column(length = 50)
     private String couponCode;
 
     @Embedded
     private AddressSnapshot shippingAddress;
 
-    @Column(name = "tracking_number", length = 100)
+    @Column(length = 100)
     private String trackingNumber;
 
-    @Column(name = "carrier", length = 100)
+    @Column(length = 100)
     private String carrier;
 
     private Instant shippedAt;
     private Instant deliveredAt;
     private Instant cancelledAt;
 
-    @Column(name = "cancellation_reason", length = 500)
+    @Column(length = 500)
     private String cancellationReason;
 
-    @Column(name = "customer_notes", length = 1000)
+    @Column(length = 1000)
     private String customerNotes;
 
     @Builder.Default
-    @OneToMany(
-            mappedBy = "order",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true,
-            fetch = FetchType.LAZY
-    )
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();
 
-    @OneToOne(
-            mappedBy = "order",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true,
-            fetch = FetchType.LAZY
-    )
+    @OneToOne(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private Payment payment;
 
+
+
     @PrePersist
-    public void beforeCreate() {
-        if (status == null) {
-            status = OrderStatus.PENDING;
-        }
+    void prePersist() {
+        if (status == null) status = OrderStatus.PENDING;
+        validateInvariant();
     }
 
-    public OrderStatus getStatus() {
-        return status;
-    }
 
-    // ✅ FIX: controlled setter (only for aggregate integrity)
+
     public void assignUser(User user) {
-        if (user == null) {
-            throw new IllegalArgumentException("User cannot be null");
-        }
+        Objects.requireNonNull(user);
         this.user = user;
     }
 
-    public void markAsPaid() {
-        changeStatus(OrderStatus.PAID);
-    }
-
-    public void markAsCancelled(String reason) {
-        this.cancellationReason = reason;
-        this.cancelledAt = Instant.now();
-        changeStatus(OrderStatus.CANCELLED);
-    }
-
-    public void markAsShipped(String carrier, String trackingNumber) {
-        this.carrier = carrier;
-        this.trackingNumber = trackingNumber;
-        this.shippedAt = Instant.now();
-        changeStatus(OrderStatus.SHIPPED);
-    }
-
-    public void markAsDelivered() {
-        this.deliveredAt = Instant.now();
-        changeStatus(OrderStatus.DELIVERED);
-    }
-
-    private void changeStatus(OrderStatus newStatus) {
-
-        if (newStatus == null) {
-            throw new IllegalStateException("Order status cannot be null");
-        }
-
-        if (!isValidTransition(this.status, newStatus)) {
-            throw new IllegalStateException("Invalid order status transition: " + this.status + " -> " + newStatus);
-        }
-
-        this.status = newStatus;
-    }
-
-    private boolean isValidTransition(OrderStatus current, OrderStatus next) {
-
-        return switch (current) {
-            case PENDING -> next == OrderStatus.PAID || next == OrderStatus.CANCELLED;
-            case PAID -> next == OrderStatus.SHIPPED || next == OrderStatus.CANCELLED;
-            case SHIPPED -> next == OrderStatus.DELIVERED;
-            case DELIVERED -> next == OrderStatus.REFUNDED;
-            default -> false;
-        };
-    }
-
     public void addItem(OrderItem item) {
-        if (item == null) return;
+        requirePending();
+        Objects.requireNonNull(item);
+
+        if (orderItems.contains(item)) return;
 
         orderItems.add(item);
         item.setOrder(this);
+
         recalculateTotals();
     }
 
     public void removeItem(OrderItem item) {
-        if (item == null) return;
+        requirePending();
+        Objects.requireNonNull(item);
 
-        orderItems.remove(item);
-        item.setOrder(null);
+        if (orderItems.remove(item)) {
+            item.setOrder(null);
+            recalculateTotals();
+        }
+    }
+
+    public List<OrderItem> getOrderItems() {
+        return Collections.unmodifiableList(orderItems);
+    }
+
+
+
+    public void markAsPaid() {
+        transition(OrderStatus.PAID);
+    }
+
+    public void markAsShipped(String carrier, String trackingNumber) {
+        Objects.requireNonNull(carrier);
+        this.carrier = carrier;
+        this.trackingNumber = trackingNumber;
+        this.shippedAt = Instant.now();
+
+        transition(OrderStatus.SHIPPED);
+    }
+
+    public void markAsDelivered() {
+        this.deliveredAt = Instant.now();
+        transition(OrderStatus.DELIVERED);
+    }
+
+    public void markAsCancelled(String reason) {
+        Objects.requireNonNull(reason);
+
+        if (status == OrderStatus.SHIPPED || status == OrderStatus.DELIVERED) {
+            throw new IllegalStateException("Cannot cancel shipped/delivered order");
+        }
+
+        this.cancellationReason = reason;
+        this.cancelledAt = Instant.now();
+
+        transition(OrderStatus.CANCELLED);
+    }
+
+
+
+    public void applyDiscount(BigDecimal discount) {
+        requirePending();
+        if (discount == null || discount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Invalid discount");
+        }
+
+        this.discountAmount = discount;
+        recalculateTotals();
+    }
+
+    public void setShippingCost(BigDecimal cost) {
+        requirePending();
+        if (cost == null || cost.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Invalid shipping cost");
+        }
+
+        this.shippingCost = cost;
         recalculateTotals();
     }
 
     public void recalculateTotals() {
-
         this.subtotal = orderItems.stream()
-                .map(item -> item.getLineTotal() != null ? item.getLineTotal() : BigDecimal.ZERO)
+                .map(i -> i.getLineTotal() != null ? i.getLineTotal() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal discount = discountAmount != null ? discountAmount : BigDecimal.ZERO;
-        BigDecimal shipping = shippingCost != null ? shippingCost : BigDecimal.ZERO;
-        BigDecimal tax = taxAmount != null ? taxAmount : BigDecimal.ZERO;
+        BigDecimal total = subtotal
+                .subtract(nvl(discountAmount))
+                .add(nvl(shippingCost))
+                .add(nvl(taxAmount));
 
-        BigDecimal calculatedTotal = subtotal
-                .subtract(discount)
-                .add(shipping)
-                .add(tax);
+        this.totalAmount = total.max(BigDecimal.ZERO);
+    }
 
-        this.totalAmount = calculatedTotal.max(BigDecimal.ZERO);
+    // ================= INTERNAL =================
+
+    private void transition(OrderStatus next) {
+        if (!isValid(status, next)) {
+            throw new IllegalStateException("Invalid transition " + status + " -> " + next);
+        }
+        this.status = next;
+    }
+
+    private boolean isValid(OrderStatus from, OrderStatus to) {
+        return switch (from) {
+            case PENDING -> to == OrderStatus.PAID || to == OrderStatus.CANCELLED;
+            case PAID -> to == OrderStatus.SHIPPED || to == OrderStatus.CANCELLED;
+            case SHIPPED -> to == OrderStatus.DELIVERED;
+            case DELIVERED -> to == OrderStatus.REFUNDED;
+            default -> false;
+        };
+    }
+
+    private void requirePending() {
+        if (status != OrderStatus.PENDING) {
+            throw new IllegalStateException("Order locked after PENDING");
+        }
+    }
+
+    private BigDecimal nvl(BigDecimal v) {
+        return v != null ? v : BigDecimal.ZERO;
+    }
+
+    private void validateInvariant() {
+        if (orderNumber == null || orderNumber.isBlank()) {
+            throw new IllegalStateException("Order number required");
+        }
+        if (user == null) {
+            throw new IllegalStateException("User required");
+        }
+        recalculateTotals();
     }
 }

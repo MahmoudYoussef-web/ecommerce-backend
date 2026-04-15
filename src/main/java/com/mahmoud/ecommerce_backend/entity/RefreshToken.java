@@ -9,19 +9,21 @@ import java.time.Instant;
 
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @Entity
 @Table(
         name = "refresh_tokens",
         indexes = {
-                @Index(name = "idx_refresh_token_hash", columnList = "token_hash", unique = true),
-                @Index(name = "idx_refresh_token_user", columnList = "user_id"),
-                @Index(name = "idx_refresh_token_expiry", columnList = "expires_at")
+                @Index(name = "idx_rt_token_hash", columnList = "token_hash"),
+                @Index(name = "idx_rt_user", columnList = "user_id"),
+                @Index(name = "idx_rt_expiry", columnList = "expires_at"),
+                @Index(name = "idx_rt_revoked", columnList = "revoked")
         }
 )
 public class RefreshToken extends BaseEntity {
+
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -32,19 +34,31 @@ public class RefreshToken extends BaseEntity {
     )
     private User user;
 
+
     @NotBlank
-    @Column(name = "token_hash", nullable = false, unique = true)
+    @Column(name = "token_hash", nullable = false, length = 255)
     private String tokenHash;
+
 
     @NotNull
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
+
+    @Builder.Default
     @Column(name = "revoked", nullable = false)
     private boolean revoked = false;
 
     @Column(name = "revoked_at")
     private Instant revokedAt;
+
+
+    @Column(name = "replaced_by_token_id")
+    private Long replacedByTokenId;
+
+
+    @Column(name = "device_id", length = 100)
+    private String deviceId;
 
     @Column(name = "device_info", length = 255)
     private String deviceInfo;
@@ -53,10 +67,16 @@ public class RefreshToken extends BaseEntity {
     private String ipAddress;
 
     public boolean isExpired() {
-        return Instant.now().isAfter(this.expiresAt);
+        return expiresAt != null && Instant.now().isAfter(expiresAt);
     }
 
-    public boolean isValid() {
-        return !revoked && !isExpired();
+    public boolean isActive() {
+        return !revoked && (expiresAt == null || Instant.now().isBefore(expiresAt));
+    }
+
+    public void revoke(Long replacedByTokenId) {
+        this.revoked = true;
+        this.revokedAt = Instant.now();
+        this.replacedByTokenId = replacedByTokenId;
     }
 }
