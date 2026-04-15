@@ -5,10 +5,11 @@ import java.math.BigDecimal;
 import com.mahmoud.ecommerce_backend.enums.PaymentMethod;
 import com.mahmoud.ecommerce_backend.enums.PaymentStatus;
 
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class PaymentResponse {
 
     private Long id;
