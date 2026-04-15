@@ -1,0 +1,122 @@
+name: "🐛 Bug Report"
+description: "Report a bug or unexpected behavior"
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+
+assignees:
+  - MahmoudYoussef-web
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        👋 Thanks for reporting a bug!
+
+        Please provide as much detail as possible so we can reproduce and fix the issue quickly.
+
+  # ================= DESCRIPTION =================
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Bug Description
+      description: Clearly describe the issue.
+      placeholder: "Calling POST /api/orders returns 500 instead of creating an order."
+    validations:
+      required: true
+
+  # ================= STEPS =================
+  - type: textarea
+    id: steps
+    attributes:
+      label: 🔁 Steps to Reproduce
+      description: Provide exact steps to reproduce the issue.
+      placeholder: |
+        1. Login via POST /api/auth/login
+        2. Add item to cart via POST /api/cart/items
+        3. Call POST /api/orders
+        4. Observe error
+    validations:
+      required: true
+
+  # ================= EXPECTED =================
+  - type: textarea
+    id: expected
+    attributes:
+      label: ✅ Expected Behavior
+      description: What should have happened?
+    validations:
+      required: true
+
+  # ================= ACTUAL =================
+  - type: textarea
+    id: actual
+    attributes:
+      label: ❌ Actual Behavior
+      description: What actually happened? Include response if possible.
+      render: json
+    validations:
+      required: true
+
+  # ================= API DETAILS =================
+  - type: textarea
+    id: request
+    attributes:
+      label: 📡 API Request (if applicable)
+      description: Provide request details (method, endpoint, body).
+      render: json
+      placeholder: |
+        POST /api/orders
+        {
+          "addressId": 1
+        }
+
+  # ================= VERSION =================
+  - type: input
+    id: version
+    attributes:
+      label: 🔖 Version / Commit
+      description: App version or commit hash
+      placeholder: "v1.0.0 or abc1234"
+    validations:
+      required: true
+
+  # ================= ENV =================
+  - type: dropdown
+    id: environment
+    attributes:
+      label: 🌍 Environment
+      options:
+        - Local (bare metal)
+        - Local (Docker)
+        - Staging
+        - Production
+    validations:
+      required: true
+
+  # ================= SEVERITY =================
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 🚨 Severity
+      options:
+        - Low (minor issue)
+        - Medium (affects functionality)
+        - High (blocking feature)
+        - Critical (system unusable)
+    validations:
+      required: true
+
+  # ================= LOGS =================
+  - type: textarea
+    id: logs
+    attributes:
+      label: 📜 Relevant Logs
+      description: Paste logs, stack trace, or error messages
+      render: shell
+
+  # ================= ADDITIONAL =================
+  - type: textarea
+    id: additional
+    attributes:
+      label: 📎 Additional Context
+      description: Any extra information (screenshots, notes, etc.)
