@@ -1,4 +1,10 @@
 package com.mahmoud.ecommerce_backend.enums;
 
-public class AccountType {
+public enum AccountType {
+
+    ASSET,
+    LIABILITY,
+    EQUITY,
+    REVENUE,
+    EXPENSE
 }

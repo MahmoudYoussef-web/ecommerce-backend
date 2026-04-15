@@ -49,6 +49,8 @@ public class User extends BaseEntity {
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
+
+
     @Builder.Default
     @NotNull
     @Enumerated(EnumType.STRING)
@@ -58,8 +60,16 @@ public class User extends BaseEntity {
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified = false;
 
+    @Column(name = "verification_token", length = 255)
+    private String verificationToken;
+
     @Builder.Default
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Column(name = "token_version", nullable = false)
+    private Integer tokenVersion = 0;
+
+
+    @Builder.Default
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UserRole> userRoles = new ArrayList<>();
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
@@ -80,11 +90,29 @@ public class User extends BaseEntity {
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private Wishlist wishlist;
 
+
+
     @Column(name = "account_non_locked", nullable = false)
     private boolean accountNonLocked = true;
 
     @Column(name = "enabled", nullable = false)
     private boolean enabled = true;
+
+
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id", insertable = false, updatable = false)
+    private Tenant tenant;
+
+    @Builder.Default
+    @Column(name = "tenant_id", nullable = false)
+    private Long tenantId = 1L;
+
+
+
+    public void incrementTokenVersion() {
+        this.tokenVersion++;
+    }
 
     public void addOrder(Order order) {
         if (order == null) return;
@@ -108,11 +136,32 @@ public class User extends BaseEntity {
         return firstName + " " + lastName;
     }
 
-    @PrePersist
+
+
+    public void activate() {
+        if (!emailVerified) {
+            throw new IllegalStateException("Cannot activate unverified email");
+        }
+        this.status = UserStatus.ACTIVE;
+    }
+
+    public void verifyEmail() {
+        this.emailVerified = true;
+        this.verificationToken = null;
+    }
+
+
     @PreUpdate
     public void normalizeEmail() {
         if (email != null) {
             email = email.toLowerCase().trim();
+        }
+    }
+
+    @PrePersist
+    public void ensureTenant() {
+        if (tenantId == null || tenantId <= 0) {
+            throw new IllegalStateException("TenantId must be set");
         }
     }
 }

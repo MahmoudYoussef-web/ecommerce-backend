@@ -1,11 +1,15 @@
 package com.mahmoud.ecommerce_backend.repository;
 
 import com.mahmoud.ecommerce_backend.entity.Payment;
+import com.mahmoud.ecommerce_backend.enums.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 import jakarta.persistence.LockModeType;
+
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
@@ -19,4 +23,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Payment p where p.id = :id")
     Optional<Payment> findByIdForUpdate(Long id);
+
+    List<Payment> findByStatusAndPaidAtBetween(
+            PaymentStatus status,
+            Instant from,
+            Instant to
+    );
 }

@@ -2,6 +2,7 @@ package com.mahmoud.ecommerce_backend.repository;
 
 import com.mahmoud.ecommerce_backend.entity.Product;
 import com.mahmoud.ecommerce_backend.enums.ProductStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
@@ -31,4 +32,6 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     Long countByBrandAndName(String brand, String name);
 
     Page<Product> findByCategoryId(Long categoryId, Pageable pageable);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Product> findById(Long id);
 }
