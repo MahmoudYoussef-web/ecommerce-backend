@@ -1,6 +1,7 @@
 package com.mahmoud.ecommerce_backend.event.listener;
 
 import com.mahmoud.ecommerce_backend.entity.Order;
+import com.mahmoud.ecommerce_backend.enums.OrderStatus;
 import com.mahmoud.ecommerce_backend.event.payment.PaymentCompletedEvent;
 import com.mahmoud.ecommerce_backend.exception.ResourceNotFoundException;
 import com.mahmoud.ecommerce_backend.repository.OrderRepository;
@@ -29,14 +30,16 @@ public class PaymentEventListener {
             Order order = orderRepository.findById(event.getOrderId())
                     .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
 
-            if (order.getStatus() == com.mahmoud.ecommerce_backend.enums.OrderStatus.PAID) {
+
+            if (order.getStatus() == OrderStatus.PAID) {
                 log.info("Order already PAID, skipping orderId={}", order.getId());
                 return;
             }
 
             order.markAsPaid();
 
-            log.info("Order marked as PAID orderId={}", order.getId());
+            log.info("Order status updated | orderId={} newStatus=PAID",
+                    order.getId());
 
         } catch (Exception ex) {
             log.error("Async payment event failed orderId={}", event.getOrderId(), ex);
