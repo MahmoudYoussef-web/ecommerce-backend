@@ -5,4 +5,6 @@ import com.mahmoud.ecommerce_backend.entity.User;
 public interface SecurityService {
 
     User getCurrentUser();
+
+    Long getCurrentUserId();
 }
