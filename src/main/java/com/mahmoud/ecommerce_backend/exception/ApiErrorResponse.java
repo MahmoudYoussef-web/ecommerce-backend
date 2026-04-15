@@ -24,12 +24,7 @@ public class ApiErrorResponse {
             String errorCode,
             String path
     ) {
-        this.status = status;
-        this.message = message;
-        this.errorCode = errorCode;
-        this.path = path;
-        this.timestamp = Instant.now();
-        this.errors = null;
+        this(status, message, errorCode, path, null);
     }
 
     public ApiErrorResponse(
@@ -44,6 +39,6 @@ public class ApiErrorResponse {
         this.errorCode = errorCode;
         this.path = path;
         this.timestamp = Instant.now();
-        this.errors = errors;
+        this.errors = (errors == null || errors.isEmpty()) ? null : errors;
     }
 }

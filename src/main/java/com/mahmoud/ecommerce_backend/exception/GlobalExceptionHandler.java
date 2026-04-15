@@ -1,41 +1,36 @@
 package com.mahmoud.ecommerce_backend.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.time.Instant;
+import java.util.*;
 
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiErrorResponse> handleApiException(
             ApiException ex,
             HttpServletRequest request
     ) {
-
         log.warn("API Exception [{}]: {} path={}", ex.getErrorCode(), ex.getMessage(), request.getRequestURI());
 
-        ApiErrorResponse response = new ApiErrorResponse(
-                ex.getStatus().value(),
-                ex.getMessage(),
-                ex.getErrorCode(),
-                request.getRequestURI()
-        );
-
-        return ResponseEntity.status(ex.getStatus()).body(response);
+        return build(ex.getStatus().value(), ex.getMessage(), ex.getErrorCode(), request, null);
     }
+
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleValidationException(
@@ -46,20 +41,33 @@ public class GlobalExceptionHandler {
         Map<String, String> errors = new HashMap<>();
 
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
-            errors.put(error.getField(), error.getDefaultMessage());
+            errors.putIfAbsent(error.getField(), error.getDefaultMessage());
         }
 
         log.warn("Validation failed path={} errors={}", request.getRequestURI(), errors);
 
-        ApiErrorResponse response = new ApiErrorResponse(
-                400,
-                "Validation failed",
-                "VALIDATION_ERROR",
-                request.getRequestURI(),
-                errors
-        );
+        return build(400, "Validation failed", "VALIDATION_ERROR", request, errors);
+    }
 
-        return ResponseEntity.badRequest().body(response);
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
+            ConstraintViolationException ex,
+            HttpServletRequest request
+    ) {
+
+        Map<String, String> errors = new HashMap<>();
+
+        for (ConstraintViolation<?> violation : ex.getConstraintViolations()) {
+            errors.put(
+                    violation.getPropertyPath().toString(),
+                    violation.getMessage()
+            );
+        }
+
+        log.warn("Constraint violation path={} errors={}", request.getRequestURI(), errors);
+
+        return build(400, "Validation failed", "VALIDATION_ERROR", request, errors);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -68,19 +76,15 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
 
-        String message = "Invalid value for parameter: " + ex.getName();
-
-        log.warn("Type mismatch path={} param={} value={}", request.getRequestURI(), ex.getName(), ex.getValue());
-
-        ApiErrorResponse response = new ApiErrorResponse(
+        return build(
                 400,
-                message,
+                "Invalid value for parameter: " + ex.getName(),
                 "INVALID_PARAMETER",
-                request.getRequestURI()
+                request,
+                null
         );
-
-        return ResponseEntity.badRequest().body(response);
     }
+
 
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<ApiErrorResponse> handleOptimisticLock(
@@ -88,17 +92,15 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
 
-        log.warn("Optimistic locking failure path={} msg={}", request.getRequestURI(), ex.getMessage());
-
-        ApiErrorResponse response = new ApiErrorResponse(
+        return build(
                 409,
                 "Resource was modified concurrently. Please retry.",
                 "CONCURRENT_MODIFICATION",
-                request.getRequestURI()
+                request,
+                null
         );
-
-        return ResponseEntity.status(409).body(response);
     }
+
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleDataIntegrity(
@@ -106,17 +108,23 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
 
-        log.error("Data integrity violation path={} msg={}", request.getRequestURI(), ex.getMessage());
+        String message = "Database constraint violation";
 
-        ApiErrorResponse response = new ApiErrorResponse(
+        if (ex.getMostSpecificCause() != null) {
+            message = ex.getMostSpecificCause().getMessage();
+        }
+
+        log.error("DB error path={} msg={}", request.getRequestURI(), message);
+
+        return build(
                 409,
-                "Database constraint violation",
+                message,
                 "DATA_INTEGRITY_ERROR",
-                request.getRequestURI()
+                request,
+                null
         );
-
-        return ResponseEntity.status(409).body(response);
     }
+
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> handleAccessDenied(
@@ -124,35 +132,9 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
 
-        log.warn("Access denied path={} msg={}", request.getRequestURI(), ex.getMessage());
-
-        ApiErrorResponse response = new ApiErrorResponse(
-                403,
-                "Access denied",
-                "ACCESS_DENIED",
-                request.getRequestURI()
-        );
-
-        return ResponseEntity.status(403).body(response);
+        return build(403, "Access denied", "ACCESS_DENIED", request, null);
     }
 
-    @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ApiErrorResponse> handleAuthentication(
-            AuthenticationException ex,
-            HttpServletRequest request
-    ) {
-
-        log.warn("Authentication failed path={} msg={}", request.getRequestURI(), ex.getMessage());
-
-        ApiErrorResponse response = new ApiErrorResponse(
-                401,
-                "Authentication required",
-                "UNAUTHORIZED",
-                request.getRequestURI()
-        );
-
-        return ResponseEntity.status(401).body(response);
-    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalArgument(
@@ -160,16 +142,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
 
-        log.warn("Illegal argument path={} msg={}", request.getRequestURI(), ex.getMessage());
-
-        ApiErrorResponse response = new ApiErrorResponse(
-                400,
-                ex.getMessage(),
-                "INVALID_ARGUMENT",
-                request.getRequestURI()
-        );
-
-        return ResponseEntity.badRequest().body(response);
+        return build(400, ex.getMessage(), "INVALID_ARGUMENT", request, null);
     }
 
     @ExceptionHandler(IllegalStateException.class)
@@ -178,17 +151,9 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
 
-        log.warn("Illegal state path={} msg={}", request.getRequestURI(), ex.getMessage());
-
-        ApiErrorResponse response = new ApiErrorResponse(
-                400,
-                ex.getMessage(),
-                "INVALID_STATE",
-                request.getRequestURI()
-        );
-
-        return ResponseEntity.badRequest().body(response);
+        return build(400, ex.getMessage(), "INVALID_STATE", request, null);
     }
+
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGenericException(
@@ -198,13 +163,22 @@ public class GlobalExceptionHandler {
 
         log.error("Unexpected error path={}", request.getRequestURI(), ex);
 
-        ApiErrorResponse response = new ApiErrorResponse(
-                500,
-                "Internal server error",
-                "INTERNAL_ERROR",
-                request.getRequestURI()
-        );
+        return build(500, "Internal server error", "INTERNAL_ERROR", request, null);
+    }
 
-        return ResponseEntity.status(500).body(response);
+
+    private ResponseEntity<ApiErrorResponse> build(
+            int status,
+            String message,
+            String code,
+            HttpServletRequest request,
+            Map<String, String> errors
+    ) {
+
+        ApiErrorResponse response = (errors == null)
+                ? new ApiErrorResponse(status, message, code, request.getRequestURI())
+                : new ApiErrorResponse(status, message, code, request.getRequestURI(), errors);
+
+        return ResponseEntity.status(status).body(response);
     }
 }
