@@ -5,22 +5,23 @@ import com.mahmoud.ecommerce_backend.dto.order.OrderResponse;
 import com.mahmoud.ecommerce_backend.entity.*;
 import com.mahmoud.ecommerce_backend.enums.OrderStatus;
 import com.mahmoud.ecommerce_backend.enums.ProductStatus;
+import com.mahmoud.ecommerce_backend.event.inventory.OrderCreatedEvent;
 import com.mahmoud.ecommerce_backend.exception.BadRequestException;
 import com.mahmoud.ecommerce_backend.exception.ForbiddenException;
 import com.mahmoud.ecommerce_backend.exception.ResourceNotFoundException;
 import com.mahmoud.ecommerce_backend.mapper.OrderMapper;
 import com.mahmoud.ecommerce_backend.repository.*;
+import com.mahmoud.ecommerce_backend.service.inventory.ReservationService;
+import com.mahmoud.ecommerce_backend.service.security.SecurityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -31,145 +32,33 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final AddressRepository addressRepository;
     private final OrderMapper orderMapper;
-    private final UserRepository userRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final SecurityService securityService;
+    private final ApplicationEventPublisher eventPublisher;
+    private final ReservationService reservationService;
 
     private static final int MAX_RETRIES = 3;
 
     @Override
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
-
-        for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
                 return processOrder(request);
             } catch (OptimisticLockingFailureException ex) {
-                log.warn("Retrying order creation attempt={}", attempt + 1);
-                if (attempt == MAX_RETRIES - 1) {
-                    throw new BadRequestException("Failed due to concurrent updates, retry again");
+                if (attempt == MAX_RETRIES) {
+                    throw new BadRequestException("Concurrent update detected");
                 }
             }
         }
-
-        throw new BadRequestException("Order processing failed");
-    }
-
-    @Transactional
-    protected OrderResponse processOrder(CreateOrderRequest request) {
-
-        if (request == null || request.getAddressId() == null) {
-            throw new BadRequestException("Invalid request");
-        }
-
-        User user = getCurrentUser();
-
-        Cart cart = cartRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Cart not found"));
-
-        if (cart.getCartItems() == null || cart.getCartItems().isEmpty()) {
-            throw new BadRequestException("Cart is empty");
-        }
-
-        Address address = addressRepository.findById(request.getAddressId())
-                .orElseThrow(() -> new ResourceNotFoundException("Address not found"));
-
-        if (!address.getUser().getId().equals(user.getId())) {
-            throw new ForbiddenException("Forbidden address");
-        }
-
-        Order order = Order.builder()
-                .orderNumber(UUID.randomUUID().toString())
-                .shippingAddress(AddressSnapshot.from(address))
-                .shippingCost(BigDecimal.ZERO)
-                .taxAmount(BigDecimal.ZERO)
-                .discountAmount(BigDecimal.ZERO)
-                .customerNotes(request.getCustomerNotes())
-                .status(OrderStatus.PENDING)
-                .build();
-
-        order.assignUser(user);
-
-        for (CartItem item : cart.getCartItems()) {
-
-            Product product = productRepository.findById(item.getProduct().getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
-
-            ProductVariant variant = null;
-
-            if (item.getVariant() != null) {
-                variant = productVariantRepository.findById(item.getVariant().getId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Variant not found"));
-            }
-
-            if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                throw new BadRequestException("Invalid quantity");
-            }
-
-            if (product.getStatus() != ProductStatus.ACTIVE) {
-                throw new BadRequestException("Product not available");
-            }
-
-            BigDecimal price;
-            Long variantId = null;
-
-            if (variant != null) {
-
-                if (!variant.getProduct().getId().equals(product.getId())) {
-                    throw new BadRequestException("Invalid variant");
-                }
-
-                if (variant.getStockQuantity() < item.getQuantity()) {
-                    throw new BadRequestException("Insufficient variant stock");
-                }
-
-                variant.decreaseStock(item.getQuantity());
-                price = variant.getEffectivePrice(product);
-                variantId = variant.getId();
-
-            } else {
-
-                if (product.getVariants() != null && !product.getVariants().isEmpty()) {
-                    throw new BadRequestException("Variant required");
-                }
-
-                if (product.getStockQuantity() < item.getQuantity()) {
-                    throw new BadRequestException("Insufficient stock");
-                }
-
-                product.decreaseStock(item.getQuantity());
-                price = product.getEffectivePrice();
-            }
-
-            OrderItem orderItem = OrderItem.builder()
-                    .productId(product.getId())
-                    .variantId(variantId)
-                    .productName(product.getName())
-                    .productSku(product.getSku())
-                    .priceAtPurchase(price)
-                    .quantity(item.getQuantity())
-                    .order(order)
-                    .build();
-
-            order.addItem(orderItem);
-        }
-
-        if (order.getOrderItems().isEmpty()) {
-            throw new BadRequestException("Empty order");
-        }
-
-        orderRepository.save(order);
-
-        cart.getCartItems().clear();
-        cart.recalculateTotal();
-
-        return orderMapper.toResponse(order);
+        throw new BadRequestException("Order failed");
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<OrderResponse> getUserOrders() {
-        User user = getCurrentUser();
-
+        User user = securityService.getCurrentUser();
         return orderRepository.findByUserId(user.getId())
                 .stream()
                 .map(orderMapper::toResponse)
@@ -177,29 +66,204 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public OrderResponse getOrderById(Long id) {
 
-        User user = getCurrentUser();
+        User user = securityService.getCurrentUser();
+        Order order = findOrderOrThrow(id);
 
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-
-        if (!order.getUser().getId().equals(user.getId())) {
-            throw new ForbiddenException("Forbidden");
-        }
+          validateOwnership(order, user);
 
         return orderMapper.toResponse(order);
     }
 
-    private User getCurrentUser() {
+    @Override
+    @Transactional
+    public void markAsShipped(Long id) {
+        Order order = findOrderOrThrow(id);
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication == null || authentication.getName() == null) {
-            throw new ForbiddenException("Unauthenticated");
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new BadRequestException("Order must be PENDING to ship");
         }
 
-        return userRepository.findByEmail(authentication.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        order.markAsShipped("SYSTEM", null);
+    }
+
+    @Override
+    @Transactional
+    public void markAsDelivered(Long id) {
+        Order order = findOrderOrThrow(id);
+
+        if (order.getStatus() != OrderStatus.SHIPPED) {
+            throw new BadRequestException("Order must be SHIPPED to deliver");
+        }
+
+        order.markAsDelivered();
+    }
+
+
+    @Override
+    @Transactional
+    public void cancelOrder(Long id) {
+
+        Order order = findOrderOrThrow(id);
+
+        if (order.getStatus() == OrderStatus.DELIVERED) {
+            throw new BadRequestException("Cannot cancel delivered order");
+        }
+
+        reservationService.release(order.getId());
+
+        order.markAsCancelled("Cancelled");
+    }
+
+
+
+    private OrderResponse processOrder(CreateOrderRequest request) {
+
+        User user = securityService.getCurrentUser();
+        Cart cart = getCart(user.getId());
+        Address address = getAddress(request.getAddressId(), user.getId());
+
+        Order order = buildOrder(user, address, request);
+
+        buildOrderItems(order, cart);
+
+
+        reserveInventory(order);
+
+        orderRepository.save(order);
+
+        eventPublisher.publishEvent(new OrderCreatedEvent(this, order));
+
+        cart.getCartItems().clear();
+
+        return orderMapper.toResponse(order);
+    }
+
+
+
+    private void buildOrderItems(Order order, Cart cart) {
+
+        for (CartItem cartItem : cart.getCartItems()) {
+
+            Product product = getProduct(cartItem.getProduct().getId());
+
+            validateProduct(product);
+            validateQuantity(cartItem.getQuantity());
+
+            BigDecimal price;
+            Long variantId = null;
+
+            if (cartItem.getVariant() != null) {
+
+                ProductVariant variant = getVariant(cartItem.getVariant().getId());
+
+                if (variant.getStockQuantity() < cartItem.getQuantity()) {
+                    throw new BadRequestException("Insufficient variant stock");
+                }
+
+                price = variant.getEffectivePrice(product);
+                variantId = variant.getId();
+
+            } else {
+
+                if (product.getStockQuantity() < cartItem.getQuantity()) {
+                    throw new BadRequestException("Insufficient stock");
+                }
+
+                price = product.getEffectivePrice();
+            }
+
+            OrderItem item = OrderItem.builder()
+                    .productId(product.getId())
+                    .variantId(variantId)
+                    .productName(product.getName())
+                    .productSku(product.getSku())
+                    .priceAtPurchase(price)
+                    .quantity(cartItem.getQuantity())
+                    .order(order)
+                    .build();
+
+            order.addItem(item);
+        }
+    }
+
+
+
+    private void reserveInventory(Order order) {
+
+        for (OrderItem item : order.getOrderItems()) {
+
+            reservationService.reserve(
+                    item.getProductId(),
+                    item.getQuantity(),
+                    order.getId()
+            );
+        }
+    }
+
+
+
+    private Cart getCart(Long userId) {
+        return cartRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cart not found"));
+    }
+
+    private Address getAddress(Long addressId, Long userId) {
+        Address address = addressRepository.findById(addressId)
+                .orElseThrow(() -> new ResourceNotFoundException("Address not found"));
+
+        if (!Objects.equals(address.getUser().getId(), userId)) {
+            throw new ForbiddenException("Forbidden");
+        }
+
+        return address;
+    }
+
+    private Order findOrderOrThrow(Long id) {
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    }
+
+    private Product getProduct(Long id) {
+        return productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+    }
+
+    private ProductVariant getVariant(Long id) {
+        return productVariantRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Variant not found"));
+    }
+
+    private void validateProduct(Product product) {
+        if (product.getStatus() != ProductStatus.ACTIVE) {
+            throw new BadRequestException("Product not available");
+        }
+    }
+
+    private void validateQuantity(Integer quantity) {
+        if (quantity == null || quantity <= 0) {
+            throw new BadRequestException("Invalid quantity");
+        }
+    }
+
+    private void validateOwnership(Order order, User user) {
+        if (!Objects.equals(order.getUser().getId(), user.getId())) {
+            throw new ForbiddenException("Forbidden");
+        }
+    }
+
+    private Order buildOrder(User user, Address address, CreateOrderRequest request) {
+        Order order = Order.builder()
+                .orderNumber(UUID.randomUUID().toString())
+                .shippingAddress(AddressSnapshot.from(address))
+                .status(OrderStatus.PENDING)
+                .customerNotes(request.getCustomerNotes())
+                .build();
+
+        order.assignUser(user);
+        return order;
     }
 }

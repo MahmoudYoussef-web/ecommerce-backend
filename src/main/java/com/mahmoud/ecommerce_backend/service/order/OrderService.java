@@ -7,9 +7,18 @@ import java.util.List;
 
 public interface OrderService {
 
+
     OrderResponse createOrder(CreateOrderRequest request);
+
 
     List<OrderResponse> getUserOrders();
 
     OrderResponse getOrderById(Long id);
+
+
+    void markAsShipped(Long id);
+
+    void markAsDelivered(Long id);
+
+    void cancelOrder(Long id);
 }
