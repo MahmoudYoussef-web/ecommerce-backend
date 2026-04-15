@@ -51,12 +51,16 @@ public class CartController {
         );
     }
 
+
     @Operation(summary = "Remove item from cart")
     @PreAuthorize("hasRole('USER')")
     @DeleteMapping("/items/{productId}")
-    public ApiResponse<CartResponse> removeItem(@PathVariable Long productId) {
+    public ApiResponse<CartResponse> removeItem(
+            @PathVariable Long productId,
+            @RequestParam(required = false) Long variantId
+    ) {
         return ApiResponse.success(
-                cartService.removeItem(productId),
+                cartService.removeItem(productId, variantId),
                 "Item removed from cart"
         );
     }
