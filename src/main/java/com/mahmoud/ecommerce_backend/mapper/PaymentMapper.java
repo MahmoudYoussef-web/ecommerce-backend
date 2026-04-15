@@ -9,5 +9,6 @@ import org.mapstruct.Mapping;
 public interface PaymentMapper {
 
     @Mapping(target = "method", source = "paymentMethod")
+    @Mapping(target = "checkoutUrl", ignore = true)
     PaymentResponse toResponse(Payment payment);
 }
