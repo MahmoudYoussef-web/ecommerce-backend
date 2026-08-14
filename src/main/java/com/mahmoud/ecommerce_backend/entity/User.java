@@ -6,6 +6,7 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 import org.hibernate.annotations.Where;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -62,6 +63,9 @@ public class User extends BaseEntity {
 
     @Column(name = "verification_token", length = 255)
     private String verificationToken;
+
+    @Column(name = "verification_token_expires_at")
+    private Instant verificationTokenExpiresAt;
 
     @Builder.Default
     @Column(name = "token_version", nullable = false)
@@ -147,7 +151,6 @@ public class User extends BaseEntity {
 
     public void verifyEmail() {
         this.emailVerified = true;
-        this.verificationToken = null;
     }
 
 

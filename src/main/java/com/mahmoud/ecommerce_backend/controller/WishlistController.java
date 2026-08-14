@@ -18,7 +18,7 @@ public class WishlistController {
     private final WishlistService wishlistService;
 
     @Operation(summary = "Get user wishlist")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @GetMapping
     public ApiResponse<WishlistResponse> getWishlist() {
         return ApiResponse.success(
@@ -28,7 +28,7 @@ public class WishlistController {
     }
 
     @Operation(summary = "Add product to wishlist")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @PostMapping("/items/{productId}")
     public ApiResponse<WishlistResponse> add(@PathVariable Long productId) {
         return ApiResponse.success(
@@ -38,7 +38,7 @@ public class WishlistController {
     }
 
     @Operation(summary = "Remove product from wishlist")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @DeleteMapping("/items/{productId}")
     public ApiResponse<WishlistResponse> remove(@PathVariable Long productId) {
         return ApiResponse.success(

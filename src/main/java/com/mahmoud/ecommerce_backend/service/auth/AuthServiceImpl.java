@@ -10,6 +10,7 @@ import com.mahmoud.ecommerce_backend.repository.*;
 import com.mahmoud.ecommerce_backend.security.jwt.JwtUtils;
 import com.mahmoud.ecommerce_backend.service.common.email.EmailService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
+    private static final long REFRESH_TTL_SECONDS = 604800L;
+
+    private static final long VERIFICATION_TOKEN_TTL_SECONDS = 86400L;
+
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
@@ -32,6 +37,8 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
 
+    @Value("${app.dev.auto-verify-email}")
+    private boolean autoVerifyEmail;
 
     @Override
     @Transactional
@@ -50,9 +57,10 @@ public class AuthServiceImpl implements AuthService {
                 .lastName(request.getLastName())
                 .email(email)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .status(UserStatus.PENDING_VERIFICATION)
-                .emailVerified(false)
+                .status(autoVerifyEmail ? UserStatus.ACTIVE : UserStatus.PENDING_VERIFICATION)
+                .emailVerified(autoVerifyEmail)
                 .verificationToken(verificationToken)
+                .verificationTokenExpiresAt(Instant.now().plusSeconds(VERIFICATION_TOKEN_TTL_SECONDS))
                 .accountNonLocked(true)
                 .enabled(true)
                 .tenantId(1L)
@@ -80,7 +88,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public AuthResponse login(LoginRequest request) {
+    public AuthTokens login(LoginRequest request) {
 
         String email = normalizeEmail(request.getEmail());
 
@@ -99,21 +107,13 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public AuthResponse refreshToken(RefreshTokenRequest request) {
-
-        String rawToken = request.getRefreshToken();
+    public AuthTokens refreshToken(String rawToken) {
 
         if (rawToken == null || rawToken.isBlank()) {
             throw new BadRequestException("Refresh token required");
         }
 
-        List<RefreshToken> tokens =
-                refreshTokenRepository.findByRevokedFalseAndExpiresAtAfter(Instant.now());
-
-        RefreshToken token = tokens.stream()
-                .filter(t -> passwordEncoder.matches(rawToken, t.getTokenHash()))
-                .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException("Invalid refresh token"));
+        RefreshToken token = findToken(rawToken, true);
 
         token.setRevoked(true);
         token.setRevokedAt(Instant.now());
@@ -124,30 +124,47 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public void logout(LogoutRequest request) {
-
-        String rawToken = request.getRefreshToken();
+    public void logout(String rawToken) {
 
         if (rawToken == null || rawToken.isBlank()) {
-            throw new BadRequestException("Refresh token required");
+            return;
         }
 
-        List<RefreshToken> tokens =
-                refreshTokenRepository.findByRevokedFalse();
-
-        RefreshToken token = tokens.stream()
-                .filter(t -> passwordEncoder.matches(rawToken, t.getTokenHash()))
-                .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException("Token not found"));
+        RefreshToken token = findToken(rawToken, false);
 
         token.setRevoked(true);
         token.setRevokedAt(Instant.now());
     }
 
 
-    private AuthResponse generateTokens(User user) {
+    @Override
+    @Transactional
+    public void verifyEmail(String token) {
 
-        List<String> roles = userRoleRepository.findByUserId(user.getId())
+        if (token == null || token.isBlank()) {
+            throw new BadRequestException("Verification token required");
+        }
+
+        User user = userRepository.findByVerificationToken(token)
+                .orElseThrow(() -> new BadRequestException("Invalid or expired verification token"));
+
+        if (user.getVerificationTokenExpiresAt() != null
+                && user.getVerificationTokenExpiresAt().isBefore(Instant.now())) {
+            throw new BadRequestException("Invalid or expired verification token");
+        }
+
+        if (user.isEmailVerified()) {
+            return;
+        }
+
+        user.verifyEmail();
+        user.activate();
+    }
+
+
+    private AuthTokens generateTokens(User user) {
+
+        List<String> roles = userRoleRepository.findByUserIdWithRoles(user.getId())
                 .stream()
                 .map(ur -> ur.getRole().getName().name())
                 .toList();
@@ -166,18 +183,27 @@ public class AuthServiceImpl implements AuthService {
         RefreshToken token = RefreshToken.builder()
                 .user(user)
                 .tokenHash(hashedToken)
-                .expiresAt(Instant.now().plusSeconds(604800))
+                .expiresAt(Instant.now().plusSeconds(REFRESH_TTL_SECONDS))
                 .revoked(false)
                 .build();
 
         refreshTokenRepository.save(token);
 
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(rawRefreshToken)
-                .build();
+        return new AuthTokens(accessToken, rawRefreshToken, user.getId());
     }
 
+
+    private RefreshToken findToken(String rawToken, boolean checkExpiry) {
+
+        List<RefreshToken> tokens = checkExpiry
+                ? refreshTokenRepository.findByRevokedFalseAndExpiresAtAfter(Instant.now())
+                : refreshTokenRepository.findByRevokedFalse();
+
+        return tokens.stream()
+                .filter(t -> passwordEncoder.matches(rawToken, t.getTokenHash()))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Invalid refresh token"));
+    }
 
 
     private void validateUser(User user) {

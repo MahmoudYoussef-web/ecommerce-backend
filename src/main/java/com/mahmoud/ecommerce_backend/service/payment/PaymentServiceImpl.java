@@ -137,6 +137,47 @@ public class PaymentServiceImpl implements PaymentService {
         applyStatusChange(payment, status, reference);
     }
 
+    @Override
+    @Transactional
+    public void markCodPaid(Long orderId) {
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        if (order.getStatus() == OrderStatus.PAID) {
+            log.info("COD mark-paid no-op | orderId={} already PAID", orderId);
+            return;
+        }
+
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new BadRequestException("Order not payable");
+        }
+
+        Payment payment = paymentRepository.findByOrderId(orderId)
+                .orElseGet(() -> {
+                    Payment created = Payment.create(
+                            order,
+                            PaymentMethod.CASH_ON_DELIVERY,
+                            order.getTotalAmount(),
+                            DEFAULT_CURRENCY
+                    );
+                    return paymentRepository.save(created);
+                });
+
+        if (payment.getStatus() == PaymentStatus.COMPLETED) {
+            log.info("COD mark-paid no-op | paymentId={} already COMPLETED", payment.getId());
+            return;
+        }
+
+        if (payment.getStatus() != PaymentStatus.PENDING) {
+            throw new BadRequestException("Invalid payment state");
+        }
+
+        String adminRef = "COD_ADMIN:" + securityService.getCurrentUser().getId();
+        handleSuccess(payment, adminRef);
+    }
+
+
     private void applyStatusChange(Payment payment, PaymentStatus status, String reference) {
 
         if (reference != null) {
@@ -158,7 +199,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         payment.complete(reference);
 
-        reservationService.confirm(order.getId());
+        reservationService.confirmForOrder(order.getId());
 
         eventPublisher.publishEvent(
                 new PaymentCompletedEvent(this, payment.getId(), order.getId())
@@ -171,7 +212,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         payment.fail("Payment failed at " + Instant.now());
 
-        reservationService.release(order.getId());
+        reservationService.releaseForOrder(order.getId());
     }
 
     private boolean assignEventId(Payment payment, String eventId) {

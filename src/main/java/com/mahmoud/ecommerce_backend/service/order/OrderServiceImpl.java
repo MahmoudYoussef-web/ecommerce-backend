@@ -15,12 +15,15 @@ import com.mahmoud.ecommerce_backend.service.inventory.ReservationService;
 import com.mahmoud.ecommerce_backend.service.security.SecurityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
 import java.util.*;
 
 @Service
@@ -37,6 +40,9 @@ public class OrderServiceImpl implements OrderService {
     private final SecurityService securityService;
     private final ApplicationEventPublisher eventPublisher;
     private final ReservationService reservationService;
+
+    @Value("${app.currency.egp-per-usd}")
+    private BigDecimal egpPerUsd;
 
     private static final int MAX_RETRIES = 3;
 
@@ -83,8 +89,8 @@ public class OrderServiceImpl implements OrderService {
         Order order = findOrderOrThrow(id);
 
 
-        if (order.getStatus() != OrderStatus.PENDING) {
-            throw new BadRequestException("Order must be PENDING to ship");
+        if (order.getStatus() != OrderStatus.PAID) {
+            throw new BadRequestException("Order must be PAID to ship");
         }
 
         order.markAsShipped("SYSTEM", null);
@@ -113,7 +119,7 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException("Cannot cancel delivered order");
         }
 
-        reservationService.release(order.getId());
+        reservationService.releaseForOrder(order.getId());
 
         order.markAsCancelled("Cancelled");
     }
@@ -130,10 +136,11 @@ public class OrderServiceImpl implements OrderService {
 
         buildOrderItems(order, cart);
 
-
-        reserveInventory(order);
+        snapshotCurrency(order);
 
         orderRepository.save(order);
+
+        reserveInventory(order);
 
         eventPublisher.publishEvent(new OrderCreatedEvent(this, order));
 
@@ -145,6 +152,10 @@ public class OrderServiceImpl implements OrderService {
 
 
     private void buildOrderItems(Order order, Cart cart) {
+
+        if (cart.getCartItems().isEmpty()) {
+            throw new BadRequestException("Cart is empty");
+        }
 
         for (CartItem cartItem : cart.getCartItems()) {
 
@@ -253,6 +264,18 @@ public class OrderServiceImpl implements OrderService {
         if (!Objects.equals(order.getUser().getId(), user.getId())) {
             throw new ForbiddenException("Forbidden");
         }
+    }
+
+    private void snapshotCurrency(Order order) {
+        BigDecimal rate = (egpPerUsd != null && egpPerUsd.compareTo(BigDecimal.ZERO) > 0)
+                ? egpPerUsd
+                : BigDecimal.ONE;
+
+        BigDecimal totalEgp = order.getTotalAmount()
+                .multiply(rate)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        order.setCurrencySnapshot(totalEgp, rate, Instant.now());
     }
 
     private Order buildOrder(User user, Address address, CreateOrderRequest request) {

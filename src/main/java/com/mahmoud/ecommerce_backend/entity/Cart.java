@@ -50,6 +50,7 @@ public class Cart extends BaseEntity {
     private String couponCode;
 
     @NotNull
+    @Builder.Default
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount = BigDecimal.ZERO;
 

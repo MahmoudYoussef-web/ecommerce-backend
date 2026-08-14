@@ -32,6 +32,8 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     Long countByBrandAndName(String brand, String name);
 
     Page<Product> findByCategoryId(Long categoryId, Pageable pageable);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<Product> findById(Long id);
+    @Query("select p from Product p where p.id = :id")
+    Optional<Product> findByIdForUpdate(Long id);
 }

@@ -38,9 +38,26 @@ A production-grade RESTful e-commerce backend built with **Spring Boot 3** and *
 
 ### Authentication & Authorization
 - JWT-based stateless authentication with separate **access** and **refresh** tokens
-- Role-based access control: `ADMIN`, `CUSTOMER`, `WAREHOUSE`
+- **Refresh tokens are delivered as `httpOnly` cookies** (`Path=/api/auth`, `SameSite`, `Secure` flag) and rotated on every refresh — the raw refresh JWT is never exposed to JavaScript
+- Origin-header CSRF defense for cookie-authenticated endpoints (`/api/auth/refresh`, `/api/auth/logout`)
+- Per-IP, per-endpoint **rate limiting** (Bucket4j) on `login`, `register`, and `refresh`
+- Email verification flow (`/api/auth/verify-email`); dev auto-verifies, production sends a verification link
 - Multi-device session management — logout from one or all devices
-- Secure endpoint protection via `@PreAuthorize` annotations
+- Secure endpoint protection via `@PreAuthorize` annotations and method-level guards
+
+### Roles & Permissions
+
+| Role | Capabilities |
+|---|---|
+| `ROLE_CUSTOMER` | Register/login, browse catalog, manage own cart/wishlist/addresses/reviews, create own orders, cancel own PENDING orders |
+| `ROLE_ADMIN` | Full catalog CRUD (products/categories), manage all orders, dashboard & revenue reports, product moderation |
+| `ROLE_VENDOR` | Create/update/delete own products & categories (catalog management) |
+| `ROLE_WAREHOUSE` | Advance order status (ship / deliver) |
+| `ROLE_ACCOUNTANT` | Financial reports |
+| `ROLE_MODERATOR` | Content moderation |
+| `ROLE_HR_MANAGER`, `ROLE_VENDOR_MANAGER` | ERP-extended roles (tenant/admin management) |
+
+> **Role self-assignment is impossible.** `POST /api/auth/register` accepts no role claim — every account is created with `ROLE_CUSTOMER` only. Privileged roles are assigned exclusively by an administrator.
 
 ### Product Catalog
 - Full CRUD for products and categories
@@ -178,7 +195,7 @@ FLUSH PRIVILEGES;
 
 **3. Configure the application**
 
-Copy `src/main/resources/application.properties` and fill in your values (see [Environment Variables](#environment-variables) below).
+Copy `.env.example` to `.env` and fill in your values (see [Environment Variables](#environment-variables) below). The app auto-loads `.env` from the repo root.
 
 **4. Build and run**
 ```bash
@@ -211,25 +228,34 @@ docker run -p 8080:8080 \
   ecommerce-backend
 ```
 
-> **Tip:** Use Docker Compose to spin up MySQL and Redis alongside the app in a single command. A `docker-compose.yml` is a natural next addition to this repo.
+> **Tip:** Spin up MySQL, Redis, and the app together with Docker Compose:
+> ```bash
+> docker compose up --build
+> ```
+> This starts MySQL (port `3307`), Redis (port `6380`), and the app (port `8080`) with health-checked dependency ordering. Copy `.env.example` to `.env` and adjust `AUTH_JWT_SECRET`, `STRIPE_SECRET_KEY`, and friends — the compose file reads them through `${VAR:-default}` interpolation.
 
 ### Environment Variables
 
-| Property | Description | Example |
-|---|---|---|
-| `spring.datasource.url` | MySQL JDBC URL | `jdbc:mysql://localhost:3306/ecommerce_db` |
-| `spring.datasource.username` | DB username | `dev_user` |
-| `spring.datasource.password` | DB password | `secret` |
-| `spring.data.redis.host` | Redis host | `localhost` |
-| `spring.data.redis.port` | Redis port | `6379` |
-| `auth.jwt.secret` | Base64-encoded JWT signing key | `VGhpc0lz...` |
-| `auth.jwt.expiration` | Access token TTL (ms) | `86400000` (24 h) |
-| `stripe.secret.key` | Stripe secret key | `sk_live_...` |
-| `stripe.webhook.secret` | Stripe webhook signing secret | `whsec_...` |
-| `payment.webhook.secret` | Internal HMAC webhook secret | `some_random_secret` |
-| `app.base-url` | Public base URL of this service | `https://api.example.com` |
+All runtime settings are overridable via environment variables (see `application.yml`). The important ones:
 
-> ⚠️ **Never commit real secrets.** Use environment variables, a secrets manager, or Spring Cloud Config in production.
+| Env Var | Description | Dev Default |
+|---|---|---|
+| `DB_URL` | MySQL JDBC URL | `jdbc:mysql://localhost:3306/ecommerce_db` |
+| `DB_USERNAME` / `DB_PASSWORD` | DB credentials | `dev_user` / `change_me` |
+| `REDIS_HOST` / `REDIS_PORT` | Redis host/port | `localhost` / `6379` |
+| `AUTH_JWT_SECRET` | Base64 JWT signing key (≥ 32 bytes for HS256) | dev value in `.env.example` |
+| `STRIPE_SECRET_KEY` | Stripe secret key | `sk_test_...` |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret | `whsec_...` |
+| `PAYMENT_WEBHOOK_SECRET` | Internal HMAC webhook secret | random value |
+| `APP_BASE_URL` | Public base URL (used in verification emails) | `http://localhost:8080` |
+| `APP_FRONTEND_URL` | Frontend origin (CORS + redirects) | `http://localhost:5173` |
+| `APP_CORS_ALLOWED_ORIGINS` | Comma-separated allowed CORS origins | `http://localhost:5173` |
+| `APP_DEV_AUTO_VERIFY_EMAIL` | Auto-verify email in dev | `true` |
+| `APP_CURRENCY_EGP_PER_USD` | Snapshot rate for EGP display totals | `48.75` |
+| `APP_MAIL_ENABLED` | When `false`, emails are logged (dev) | `false` |
+| `APP_RATE_LIMIT_ENABLED` | Enable Bucket4j rate limiting | `true` |
+
+> ⚠️ **Never commit real secrets.** The `.env` file is gitignored — copy `.env.example` to `.env` for local development and use a secrets manager in production.
 
 ---
 
@@ -249,8 +275,9 @@ All endpoints are prefixed with `/api`.
 |---|---|---|---|
 | `POST` | `/register` | Create a new account | Public |
 | `POST` | `/login` | Obtain access + refresh tokens | Public |
-| `POST` | `/refresh` | Rotate tokens using a refresh token | Public |
-| `POST` | `/logout` | Revoke refresh token(s) | Bearer |
+| `POST` | `/refresh` | Rotate tokens using the httpOnly refresh cookie | Public (Origin-checked) |
+| `POST` | `/logout` | Revoke refresh token(s) and clear cookie | Bearer |
+| `GET` | `/verify-email?token=` | Confirm email verification token | Public |
 
 ### Users — `/api/users`
 
@@ -324,6 +351,7 @@ All endpoints are prefixed with `/api`.
 |---|---|---|---|
 | `POST` | `/` | Create payment record for an order | Bearer |
 | `POST` | `/checkout/{paymentId}` | Generate Stripe Checkout URL | Bearer |
+| `POST` | `/{orderId}/mark-paid` | Confirm an order paid (COD settlement) — idempotent | Admin |
 | `POST` | `/webhook` | Stripe / provider webhook endpoint | Signature |
 
 ### Reviews — `/api/reviews`
@@ -375,9 +403,12 @@ Client                    Backend                      Stripe
 ## Security Model
 
 - **Access tokens** are short-lived JWTs signed with a base64-encoded secret. They carry the user's ID, email, and roles.
-- **Refresh tokens** are persisted to the database and scoped to a device ID, enabling selective revocation.
+- **Refresh tokens** are persisted to the database, delivered as `httpOnly` cookies (`Path=/api/auth`, `SameSite`, `Secure` in prod), rotated on each refresh, and validated for origin on the server (cross-site refresh/logout requests are rejected with `CSRF_REJECTED`).
+- **Registration cannot mint privileged roles** — the register endpoint ignores any role claim and always creates the account as `ROLE_CUSTOMER`. Roles are assigned by an admin via `user_roles`.
+- **Brute-force defense** — Bucket4j per-IP rate limiting (`429 RATE_LIMITED`) is applied to `/api/auth/login`, `/api/auth/register`, and `/api/auth/refresh`.
 - **Endpoint protection** is handled at the controller method level using `@PreAuthorize("hasRole('ADMIN')")` etc., keeping security rules co-located with the endpoints they protect.
 - **Webhook security** uses two layers: Stripe's own `Stripe-Signature` header for Stripe events, and an HMAC-based `X-Signature` / `X-Timestamp` scheme for internal webhooks, both validated via the `WebhookValidator` abstraction.
+- **Operations** — `/actuator/health` is publicly reachable for load-balancer probes; all other actuator endpoints stay unexposed.
 
 ---
 

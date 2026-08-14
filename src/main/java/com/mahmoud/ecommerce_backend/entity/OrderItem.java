@@ -69,13 +69,16 @@ public class OrderItem extends BaseEntity {
     @Column(name = "line_total", nullable = false, precision = 12, scale = 2)
     private BigDecimal lineTotal;
 
+    public BigDecimal lineTotalValue() {
+        if (priceAtPurchase != null && quantity != null) {
+            return priceAtPurchase.multiply(BigDecimal.valueOf(quantity));
+        }
+        return BigDecimal.ZERO;
+    }
+
     @PrePersist
     @PreUpdate
     public void computeLineTotal() {
-        if (priceAtPurchase != null && quantity != null) {
-            this.lineTotal = priceAtPurchase.multiply(BigDecimal.valueOf(quantity));
-        } else {
-            this.lineTotal = BigDecimal.ZERO;
-        }
+        this.lineTotal = lineTotalValue();
     }
 }

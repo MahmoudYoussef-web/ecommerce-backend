@@ -1,0 +1,70 @@
+version: '3.9'
+
+services:
+
+  mysql:
+    image: mysql:8
+    container_name: ecommerce-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ecommerce_db
+      MYSQL_USER: dev_user
+      MYSQL_PASSWORD: dev_pass
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecommerce-redis
+    restart: always
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: ecommerce-app
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ecommerce_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: dev_user
+      SPRING_DATASOURCE_PASSWORD: dev_pass
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-1zcWFMwT57Bdcw/2/FMdk3ILZ8P91SP2Hu6mrSLYbf0=}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-change_me_internal_webhook_secret}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost:5173}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      APP_COOKIE_SAMESITE: Lax
+      APP_COOKIE_SECURE: "false"
+      APP_DEV_AUTO_VERIFY_EMAIL: "true"
+      APP_CURRENCY_EGP_PER_USD: ${APP_CURRENCY_EGP_PER_USD:-48.75}
+      APP_RATE_LIMIT_ENABLED: ${APP_RATE_LIMIT_ENABLED:-true}
+
+volumes:
+  mysql_data:
+  redis_data:

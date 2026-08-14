@@ -19,7 +19,7 @@ public class CartController {
     private final CartService cartService;
 
     @Operation(summary = "Get current user cart")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @GetMapping
     public ApiResponse<CartResponse> getCart() {
         return ApiResponse.success(
@@ -29,7 +29,7 @@ public class CartController {
     }
 
     @Operation(summary = "Add item to cart")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @PostMapping("/items")
     public ApiResponse<CartResponse> addItem(@Valid @RequestBody AddToCartRequest request) {
         return ApiResponse.success(
@@ -39,7 +39,7 @@ public class CartController {
     }
 
     @Operation(summary = "Update cart item quantity")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @PutMapping("/items/{productId}")
     public ApiResponse<CartResponse> updateItem(@PathVariable Long productId,
                                                 @Valid @RequestBody UpdateCartItemRequest request) {
@@ -53,7 +53,7 @@ public class CartController {
 
 
     @Operation(summary = "Remove item from cart")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @DeleteMapping("/items/{productId}")
     public ApiResponse<CartResponse> removeItem(
             @PathVariable Long productId,
@@ -66,7 +66,7 @@ public class CartController {
     }
 
     @Operation(summary = "Clear cart")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @DeleteMapping
     public ApiResponse<Void> clear() {
         cartService.clearCart();

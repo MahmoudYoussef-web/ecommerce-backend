@@ -22,4 +22,6 @@ public interface PaymentService {
                               String currency);
 
     String createCheckoutSession(Long paymentId);
+
+    void markCodPaid(Long orderId);
 }

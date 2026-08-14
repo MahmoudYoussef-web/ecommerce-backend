@@ -21,5 +21,10 @@ public interface StockReservationRepository extends JpaRepository<StockReservati
             Instant now
     );
 
-    Optional<StockReservation> findByOrderId(Long orderId);
+    List<StockReservation> findAllByOrderId(Long orderId);
+
+    @Query("select coalesce(sum(r.quantity), 0) from StockReservation r " +
+            "where r.productId = :productId and r.status = :status")
+    long sumQuantityByProductAndStatus(@Param("productId") Long productId,
+                                       @Param("status") StockReservationStatus status);
 }

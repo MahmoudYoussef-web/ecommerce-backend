@@ -1,0 +1,45 @@
+# ===============================
+# DEV PROFILE
+# Local development defaults. Every value can be overridden by environment
+# variables (or the gitignored .env file imported by application.yml).
+# ===============================
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/ecommerce_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:dev_user}
+    password: ${DB_PASSWORD}
+
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET}
+
+stripe:
+  secret:
+    key: ${STRIPE_SECRET_KEY:sk_test_your_secret_key_here}
+  webhook:
+    secret: ${STRIPE_WEBHOOK_SECRET:whsec_your_webhook_secret_here}
+
+payment:
+  webhook:
+    secret: ${PAYMENT_WEBHOOK_SECRET:your_internal_webhook_secret_here}
+
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  frontend-url: ${APP_FRONTEND_URL:http://localhost:5173}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  cookie:
+    same-site: ${APP_COOKIE_SAMESITE:Lax}
+    secure: ${APP_COOKIE_SECURE:false}
+  dev:
+    auto-verify-email: ${APP_DEV_AUTO_VERIFY_EMAIL:true}
+  currency:
+    egp-per-usd: ${APP_CURRENCY_EGP_PER_USD:48.75}
+
+# Dev logs mail instead of sending it (app.mail.enabled=false) and uses a
+# placeholder SMTP host, so the mail health indicator would always report DOWN.
+# Keep /actuator/health green locally; prod enables it (application.yml).
+management:
+  health:
+    mail:
+      enabled: false

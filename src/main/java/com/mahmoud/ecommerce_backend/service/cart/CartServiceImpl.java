@@ -27,6 +27,7 @@ public class CartServiceImpl implements CartService {
     private final SecurityService securityService;
 
     @Override
+    @Transactional
     public CartResponse getCart() {
         User user = securityService.getCurrentUser();
 

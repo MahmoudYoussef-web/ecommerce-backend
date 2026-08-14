@@ -5,6 +5,7 @@ import com.mahmoud.ecommerce_backend.security.jwt.JwtAuthEntryPoint;
 import com.mahmoud.ecommerce_backend.security.user.ShopUserDetailsService;
 import com.mahmoud.ecommerce_backend.tenant.TenantFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.*;
@@ -21,6 +22,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.*;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -32,6 +34,11 @@ public class SecurityConfig {
     private final JwtAuthEntryPoint authEntryPoint;
     private final AuthTokenFilter authTokenFilter;
     private final TenantFilter tenantFilter;
+    private final RateLimitFilter rateLimitFilter;
+    private final CsrfOriginCheckFilter csrfOriginCheckFilter;
+
+    @Value("${app.cors.allowed-origins}")
+    private String allowedOrigins;
 
 
     @Bean
@@ -76,10 +83,14 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOrigins(List.of("*")); // عدلها في production
+        config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("Authorization"));
+        config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
@@ -115,10 +126,13 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/payments/webhook").permitAll()
 
+                        .requestMatchers("/actuator/health").permitAll()
+
 
                         .requestMatchers(HttpMethod.GET,
                                 "/api/products/**",
-                                "/api/categories/**"
+                                "/api/categories/**",
+                                "/api/reviews/**"
                         ).permitAll()
 
 
@@ -145,6 +159,10 @@ public class SecurityConfig {
 
                 .authenticationProvider(authProvider())
 
+
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+
+                .addFilterBefore(csrfOriginCheckFilter, UsernamePasswordAuthenticationFilter.class)
 
                 .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class)
 
