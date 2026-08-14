@@ -70,6 +70,15 @@ public class Order extends BaseEntity {
     @Builder.Default
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
+    @Column(name = "total_amount_egp", precision = 12, scale = 2)
+    private BigDecimal totalAmountEgp;
+
+    @Column(name = "exchange_rate", precision = 12, scale = 6)
+    private BigDecimal exchangeRate;
+
+    @Column(name = "exchange_rate_at")
+    private Instant exchangeRateAt;
+
     @Column(length = 50)
     private String couponCode;
 
@@ -175,6 +184,12 @@ public class Order extends BaseEntity {
 
 
 
+    public void setCurrencySnapshot(BigDecimal totalAmountEgp, BigDecimal exchangeRate, Instant exchangeRateAt) {
+        this.totalAmountEgp = totalAmountEgp;
+        this.exchangeRate = exchangeRate;
+        this.exchangeRateAt = exchangeRateAt;
+    }
+
     public void applyDiscount(BigDecimal discount) {
         requirePending();
         if (discount == null || discount.compareTo(BigDecimal.ZERO) < 0) {
@@ -197,7 +212,10 @@ public class Order extends BaseEntity {
 
     public void recalculateTotals() {
         this.subtotal = orderItems.stream()
-                .map(i -> i.getLineTotal() != null ? i.getLineTotal() : BigDecimal.ZERO)
+                .map(i -> {
+                    BigDecimal lineTotal = i.getLineTotal();
+                    return lineTotal != null ? lineTotal : i.lineTotalValue();
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal total = subtotal
@@ -244,6 +262,8 @@ public class Order extends BaseEntity {
         if (user == null) {
             throw new IllegalStateException("User required");
         }
-        recalculateTotals();
+        if (orderItems != null && !orderItems.isEmpty()) {
+            recalculateTotals();
+        }
     }
 }

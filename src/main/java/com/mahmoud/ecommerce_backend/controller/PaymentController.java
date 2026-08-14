@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -48,6 +49,14 @@ public class PaymentController {
     public ApiResponse<String> createCheckout(@PathVariable Long paymentId) {
         String url = paymentService.createCheckoutSession(paymentId);
         return ApiResponse.success(url, "Checkout session created");
+    }
+
+    @Operation(summary = "Admin: mark a COD order as paid")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/{orderId}/mark-paid")
+    public ApiResponse<Void> markCodPaid(@PathVariable Long orderId) {
+        paymentService.markCodPaid(orderId);
+        return ApiResponse.success(null, "COD payment marked as paid");
     }
 
     @Operation(summary = "Webhook endpoint for payment provider")

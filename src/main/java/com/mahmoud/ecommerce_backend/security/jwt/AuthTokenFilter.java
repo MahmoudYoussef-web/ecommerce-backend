@@ -2,7 +2,6 @@ package com.mahmoud.ecommerce_backend.security.jwt;
 
 import com.mahmoud.ecommerce_backend.security.user.CustomUserPrincipal;
 import com.mahmoud.ecommerce_backend.security.user.ShopUserDetailsService;
-import com.mahmoud.ecommerce_backend.tenant.TenantContext;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import lombok.RequiredArgsConstructor;
@@ -35,21 +34,20 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                 String email = jwtUtils.extractEmail(jwt);
                 Long userId = jwtUtils.extractUserId(jwt);
                 Integer tokenVersion = jwtUtils.extractTokenVersion(jwt);
-                Long tenantId = jwtUtils.extractTenantId(jwt);
 
                 var userDetails = userDetailsService.loadUserByUsername(email);
 
                 if (userDetails instanceof CustomUserPrincipal principal) {
 
                     if (!principal.getUserId().equals(userId) ||
-                            !principal.getTokenVersion().equals(tokenVersion)) {
+                            !principal.getTokenVersion().equals(tokenVersion) ||
+                            !principal.isEnabled() ||
+                            !principal.isAccountNonLocked()) {
 
                         SecurityContextHolder.clearContext();
                         filterChain.doFilter(request, response);
                         return;
                     }
-
-                    TenantContext.set(tenantId);
 
                     if (SecurityContextHolder.getContext().getAuthentication() == null) {
 
@@ -70,9 +68,6 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
-
-
-        TenantContext.clear();
     }
 
     private String parseJwt(HttpServletRequest request) {

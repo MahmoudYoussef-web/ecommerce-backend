@@ -30,8 +30,8 @@ public class StripePaymentProvider implements PaymentProvider {
     @Value("${stripe.webhook.secret}")
     private String stripeWebhookSecret;
 
-    @Value("${app.base-url}")
-    private String baseUrl;
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
 
     @PostConstruct
     public void init() {
@@ -64,8 +64,8 @@ public class StripePaymentProvider implements PaymentProvider {
 
             SessionCreateParams params = SessionCreateParams.builder()
                     .setMode(SessionCreateParams.Mode.PAYMENT)
-                    .setSuccessUrl(baseUrl + "/success?session_id={CHECKOUT_SESSION_ID}")
-                    .setCancelUrl(baseUrl + "/cancel")
+                    .setSuccessUrl(frontendUrl + "/order/success?session_id={CHECKOUT_SESSION_ID}")
+                    .setCancelUrl(frontendUrl + "/checkout")
                     .putMetadata("paymentId", String.valueOf(payment.getId()))
                     .putMetadata("orderId", String.valueOf(payment.getOrder().getId()))
                     .addLineItem(

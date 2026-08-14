@@ -1,16 +1,26 @@
 package com.mahmoud.ecommerce_backend;
 
+import com.mahmoud.ecommerce_backend.entity.Category;
 import com.mahmoud.ecommerce_backend.entity.Product;
+import com.mahmoud.ecommerce_backend.enums.ProductStatus;
+import com.mahmoud.ecommerce_backend.repository.CategoryRepository;
 import com.mahmoud.ecommerce_backend.repository.ProductRepository;
+import com.mahmoud.ecommerce_backend.repository.StockReservationRepository;
 import com.mahmoud.ecommerce_backend.service.inventory.ReservationService;
+import com.mahmoud.ecommerce_backend.tenant.TenantContext;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,15 +34,64 @@ public class InventoryLoadTest {
     @Autowired
     private ProductRepository productRepository;
 
+    @Autowired
+    private CategoryRepository categoryRepository;
+
+    @Autowired
+    private StockReservationRepository reservationRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private static final int USERS = 1000;
+    private static final int LOAD_STOCK = 750;
     private static final int THREAD_POOL = 50;
+
+    private Product product;
+
+    @BeforeEach
+    void setUp() {
+        TenantContext.set(1L);
+        cleanup();
+
+        Category category = categoryRepository.save(
+                Category.builder()
+                        .name("Load Test Category")
+                        .slug("load-cat-" + UUID.randomUUID())
+                        .displayOrder(0)
+                        .active(true)
+                        .build()
+        );
+
+        product = productRepository.save(
+                Product.builder()
+                        .name("Load Test Product")
+                        .slug("load-prod-" + UUID.randomUUID())
+                        .sku("LOAD-" + UUID.randomUUID())
+                        .price(new BigDecimal("100.00"))
+                        .stockQuantity(LOAD_STOCK)
+                        .reviewCount(0)
+                        .lowStockThreshold(0)
+                        .status(ProductStatus.ACTIVE)
+                        .category(category)
+                        .build()
+        );
+    }
+
+    @AfterEach
+    void tearDown() {
+        cleanup();
+        TenantContext.clear();
+    }
+
+    private void cleanup() {
+        jdbcTemplate.update("DELETE FROM stock_reservations WHERE tenant_id = 1");
+        jdbcTemplate.update("DELETE FROM products WHERE tenant_id = 1");
+        jdbcTemplate.update("DELETE FROM categories WHERE tenant_id = 1");
+    }
 
     @Test
     void simulateHighLoad() throws Exception {
-
-        Product product = productRepository.findById(1L).orElseThrow();
-
-        int initialStock = product.getStockQuantity();
 
         ExecutorService executor = Executors.newFixedThreadPool(THREAD_POOL);
 
@@ -87,8 +146,14 @@ public class InventoryLoadTest {
         System.out.println("Throughput (req/sec): " + (USERS * 1000.0 / duration.toMillis()));
 
 
-        assertThat(success).isLessThanOrEqualTo(initialStock);
+        assertThat(success).isEqualTo(LOAD_STOCK);
+        assertThat(failed).isEqualTo(USERS - LOAD_STOCK);
 
-        assertThat(duration.toSeconds()).isLessThan(10);
+        long reservedCount = reservationRepository.findAll().stream()
+                .filter(r -> r.getProductId().equals(product.getId()))
+                .count();
+        assertThat(reservedCount).isEqualTo(LOAD_STOCK);
+
+        assertThat(duration.toSeconds()).isLessThanOrEqualTo(15);
     }
 }

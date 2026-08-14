@@ -17,7 +17,7 @@ import java.time.Instant;
 @RequiredArgsConstructor
 public class JwtAuthEntryPoint implements AuthenticationEntryPoint {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @Override
     public void commence(HttpServletRequest request,

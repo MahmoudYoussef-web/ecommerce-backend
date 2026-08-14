@@ -21,7 +21,7 @@ public class ReviewController {
     private final ReviewService reviewService;
 
     @Operation(summary = "Create product review")
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('CUSTOMER')")
     @PostMapping
     public ApiResponse<ReviewResponse> create(@Valid @RequestBody CreateReviewRequest request) {
         return ApiResponse.success(
@@ -31,7 +31,6 @@ public class ReviewController {
     }
 
     @Operation(summary = "Get product reviews")
-    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @GetMapping("/product/{productId}")
     public ApiResponse<List<ReviewResponse>> getProductReviews(@PathVariable Long productId) {
         return ApiResponse.success(

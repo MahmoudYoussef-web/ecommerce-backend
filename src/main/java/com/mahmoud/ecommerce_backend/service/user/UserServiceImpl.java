@@ -60,7 +60,7 @@ public class UserServiceImpl implements UserService {
 
         UserResponse response = userMapper.toResponse(user);
 
-        List<String> roles = userRoleRepository.findByUserId(user.getId())
+        List<String> roles = userRoleRepository.findByUserIdWithRoles(user.getId())
                 .stream()
                 .map(ur -> ur.getRole().getName().name())
                 .toList();

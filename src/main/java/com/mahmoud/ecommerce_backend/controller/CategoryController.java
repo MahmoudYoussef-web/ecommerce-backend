@@ -21,7 +21,6 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     @Operation(summary = "Get all categories")
-    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @GetMapping
     public ApiResponse<List<CategoryResponse>> getAll() {
         return ApiResponse.success(
@@ -31,7 +30,6 @@ public class CategoryController {
     }
 
     @Operation(summary = "Get category by slug")
-    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @GetMapping("/{slug}")
     public ApiResponse<CategoryResponse> getBySlug(@PathVariable String slug) {
         return ApiResponse.success(

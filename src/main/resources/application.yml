@@ -1,0 +1,121 @@
+spring:
+  application:
+    name: ecommerce-backend
+
+  profiles:
+    default: dev
+
+  # Optional local secrets file (gitignored). Values here override profile files.
+  config:
+    import: optional:file:.env[.properties]
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: HikariPool
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 20000
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  mail:
+    host: ${MAIL_HOST:smtp.example.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:false}
+
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    # Existing pre-Flyway databases are baselined at V1 (schema created by
+    # Hibernate previously); fresh databases are migrated from scratch via
+    # db/migration/V1__baseline.sql.
+    baseline-on-migrate: true
+    baseline-version: 1
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: UTC
+
+  mvc:
+    throw-exception-if-no-handler-found: true
+
+  web:
+    resources:
+      add-mappings: false
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.springframework: INFO
+    org.hibernate.SQL: INFO
+    org.hibernate.orm.jdbc.bind: OFF
+
+# ===============================
+# JWT (expiration is env-neutral; secret lives in the active profile)
+# ===============================
+auth:
+  jwt:
+    expiration: 86400000
+
+# ===============================
+# SWAGGER / OPENAPI
+# ===============================
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+# ===============================
+# RATE LIMITING (Bucket4j, per-IP)
+# ===============================
+app:
+  rate-limit:
+    enabled: ${APP_RATE_LIMIT_ENABLED:true}
+    capacity: ${APP_RATE_LIMIT_CAPACITY:10}
+    refill-per-minute: ${APP_RATE_LIMIT_REFILL_PER_MINUTE:20}
+
+  # When false (dev default), emails are logged instead of sent over SMTP.
+  mail:
+    enabled: ${APP_MAIL_ENABLED:false}
+
+# ===============================
+# ACTUATOR
+# ===============================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+  health:
+    # A broken SMTP config must surface as unhealthy (fails loudly) instead of
+    # silently failing to send verification/password emails. The dev profile
+    # overrides this back to false because dev logs mail and uses a placeholder
+    # SMTP host (see application-dev.yml).
+    mail:
+      enabled: true

@@ -21,14 +21,17 @@ git clone https://github.com/MahmoudYoussef-web/ecommerce-backend.git
 cd ecommerce-backend
 ```
 
-Create the database:
+Create the database (replace `<password>` with your own value, then set it in `.env`):
 
 ```sql
 CREATE DATABASE ecommerce_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'dev_user'@'localhost' IDENTIFIED BY 'Dev@2026#';
+CREATE USER 'dev_user'@'localhost' IDENTIFIED BY '<password>';
 GRANT ALL PRIVILEGES ON ecommerce_db.* TO 'dev_user'@'localhost';
 FLUSH PRIVILEGES;
 ```
+
+Configure secrets: copy `.env.example` to `.env` (gitignored) and fill in real values
+(`DB_PASSWORD`, `AUTH_JWT_SECRET`, etc.). The app auto-loads `.env` from the repo root.
 
 Run the app:
 

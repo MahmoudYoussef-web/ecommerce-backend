@@ -185,6 +185,7 @@ public class Payment extends BaseEntity {
     private boolean isValidTransition(PaymentStatus current, PaymentStatus next) {
         return switch (current) {
             case PENDING -> next == PaymentStatus.INITIATED
+                    || next == PaymentStatus.COMPLETED
                     || next == PaymentStatus.FAILED
                     || next == PaymentStatus.CANCELLED;
 

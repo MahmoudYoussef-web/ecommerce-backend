@@ -7,6 +7,7 @@ import com.mahmoud.ecommerce_backend.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,17 +19,21 @@ import java.util.Arrays;
 @Transactional
 public class DataInitializer implements ApplicationListener<ApplicationReadyEvent> {
 
+    private static final long SYSTEM_TENANT_ID = 1L;
+
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
     private final ChartOfAccountRepository coaRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
 
+        ensureSystemTenant();
 
-        TenantContext.set(1L);
+        TenantContext.set(SYSTEM_TENANT_ID);
 
         try {
 
@@ -50,6 +55,13 @@ public class DataInitializer implements ApplicationListener<ApplicationReadyEven
         } finally {
             TenantContext.clear();
         }
+    }
+
+    private void ensureSystemTenant() {
+        jdbcTemplate.update(
+                "INSERT IGNORE INTO tenants (id, name, active) VALUES (?, 'SYSTEM', true)",
+                SYSTEM_TENANT_ID
+        );
     }
 
     private void createRoleIfNotExists(RoleName roleName) {
@@ -86,6 +98,7 @@ public class DataInitializer implements ApplicationListener<ApplicationReadyEven
                 .enabled(true)
                 .accountNonLocked(true)
                 .emailVerified(true)
+                .tenantId(SYSTEM_TENANT_ID)
                 .build();
 
         userRepository.save(user);

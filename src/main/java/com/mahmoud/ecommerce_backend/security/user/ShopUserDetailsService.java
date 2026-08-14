@@ -1,14 +1,13 @@
 package com.mahmoud.ecommerce_backend.security.user;
 
+import com.mahmoud.ecommerce_backend.entity.Tenant;
 import com.mahmoud.ecommerce_backend.entity.User;
-import com.mahmoud.ecommerce_backend.enums.UserStatus;
 import com.mahmoud.ecommerce_backend.repository.UserRepository;
 import com.mahmoud.ecommerce_backend.repository.UserRoleRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.authentication.DisabledException;
-import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.userdetails.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -20,6 +19,7 @@ public class ShopUserDetailsService implements UserDetailsService {
     private final UserRoleRepository userRoleRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
 
         String normalizedEmail = email.toLowerCase().trim();
@@ -27,25 +27,14 @@ public class ShopUserDetailsService implements UserDetailsService {
         User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
+        Tenant tenant = user.getTenant();
 
-        if (!user.isEmailVerified()) {
-            throw new DisabledException("Email not verified");
-        }
-
-        if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new DisabledException("Account not active");
-        }
-
-        if (!user.isEnabled()) {
-            throw new DisabledException("Account disabled");
-        }
-
-        if (!user.isAccountNonLocked()) {
-            throw new LockedException("Account locked");
+        if (tenant != null && !tenant.isActive()) {
+            throw new UsernameNotFoundException("User not found");
         }
 
 
-        List<String> roles = userRoleRepository.findByUserId(user.getId())
+        List<String> roles = userRoleRepository.findByUserIdWithRoles(user.getId())
                 .stream()
                 .map(ur -> ur.getRole().getName().name())
                 .toList();

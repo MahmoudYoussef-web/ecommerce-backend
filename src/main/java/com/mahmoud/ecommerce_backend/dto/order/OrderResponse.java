@@ -15,6 +15,9 @@ public class OrderResponse {
     private LocalDateTime createdAt;
     private String status;
     private BigDecimal totalAmount;
+    private BigDecimal totalAmountEgp;
+    private BigDecimal exchangeRate;
+    private LocalDateTime exchangeRateAt;
     private AddressSnapshot address;
     private List<OrderItemResponse> items;
 }

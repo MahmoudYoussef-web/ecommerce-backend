@@ -2,6 +2,7 @@ package com.mahmoud.ecommerce_backend.event.inventory;
 
 import com.mahmoud.ecommerce_backend.entity.*;
 import com.mahmoud.ecommerce_backend.enums.StockMovementType;
+import com.mahmoud.ecommerce_backend.repository.ProductRepository;
 import com.mahmoud.ecommerce_backend.repository.StockMovementRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class InventoryEventListener {
 
     private final StockMovementRepository stockMovementRepository;
+    private final ProductRepository productRepository;
 
     @EventListener
     @Transactional
@@ -26,13 +28,16 @@ public class InventoryEventListener {
 
             int quantity = item.getQuantity();
 
+            Product product = productRepository.findById(item.getProductId()).orElse(null);
+            int stock = product != null ? product.getStockQuantity() : 0;
+
             StockMovement movement = StockMovement.builder()
                     .productId(item.getProductId())
                     .variantId(item.getVariantId())
                     .movementType(StockMovementType.ORDER_OUT)
                     .quantity(quantity)
-                    .beforeQuantity(null)
-                    .afterQuantity(null)
+                    .beforeQuantity(stock)
+                    .afterQuantity(stock)
                     .referenceId(order.getId())
                     .referenceType("ORDER")
                     .note("Order #" + order.getOrderNumber())

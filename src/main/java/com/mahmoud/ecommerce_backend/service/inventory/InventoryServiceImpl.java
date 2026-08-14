@@ -7,8 +7,6 @@ import com.mahmoud.ecommerce_backend.exception.BadRequestException;
 import com.mahmoud.ecommerce_backend.exception.ResourceNotFoundException;
 import com.mahmoud.ecommerce_backend.repository.ProductRepository;
 import com.mahmoud.ecommerce_backend.repository.StockMovementRepository;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -22,7 +20,6 @@ public class InventoryServiceImpl implements InventoryService {
 
     private final ProductRepository productRepository;
     private final StockMovementRepository stockMovementRepository;
-    private final EntityManager entityManager;
 
     private static final int MAX_RETRIES = 3;
 
@@ -97,9 +94,8 @@ public class InventoryServiceImpl implements InventoryService {
 
 
     private Product findProductWithLock(Long productId) {
-        Product product = findProduct(productId);
-        entityManager.lock(product, LockModeType.PESSIMISTIC_WRITE);
-        return product;
+        return productRepository.findByIdForUpdate(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
     }
 
     private Product findProduct(Long productId) {

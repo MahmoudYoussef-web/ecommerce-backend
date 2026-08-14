@@ -5,13 +5,12 @@ import com.mahmoud.ecommerce_backend.enums.StockReservationStatus;
 import com.mahmoud.ecommerce_backend.exception.BadRequestException;
 import com.mahmoud.ecommerce_backend.repository.ProductRepository;
 import com.mahmoud.ecommerce_backend.repository.StockReservationRepository;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -19,7 +18,6 @@ public class ReservationService {
 
     private final StockReservationRepository reservationRepository;
     private final ProductRepository productRepository;
-    private final EntityManager entityManager;
 
     private static final long TTL_SECONDS = 900; // 15 min
 
@@ -27,12 +25,17 @@ public class ReservationService {
     @Transactional
     public StockReservation reserve(Long productId, int qty, Long orderId) {
 
-        Product product = productRepository.findById(productId)
+        Product product = productRepository.findByIdForUpdate(productId)
                 .orElseThrow(() -> new BadRequestException("Product not found"));
 
-        entityManager.lock(product, LockModeType.PESSIMISTIC_WRITE);
+        long reserved = reservationRepository.sumQuantityByProductAndStatus(
+                productId,
+                StockReservationStatus.RESERVED
+        );
 
-        if (product.getStockQuantity() < qty) {
+        long available = product.getStockQuantity() - reserved;
+
+        if (qty > available) {
             throw new BadRequestException("Insufficient stock");
         }
 
@@ -49,17 +52,32 @@ public class ReservationService {
 
 
     @Transactional
-    public void confirm(Long reservationId) {
+    public void confirmForOrder(Long orderId) {
+
+        for (StockReservation reservation : reservationRepository.findAllByOrderId(orderId)) {
+            confirm(reservation.getId());
+        }
+    }
+
+
+    @Transactional
+    public void releaseForOrder(Long orderId) {
+
+        for (StockReservation reservation : reservationRepository.findAllByOrderId(orderId)) {
+            release(reservation.getId());
+        }
+    }
+
+
+    private void confirm(Long reservationId) {
 
         StockReservation reservation = reservationRepository.findByIdForUpdate(reservationId)
                 .orElseThrow();
 
         if (reservation.getStatus() == StockReservationStatus.CONFIRMED) return;
 
-        Product product = productRepository.findById(reservation.getProductId())
+        Product product = productRepository.findByIdForUpdate(reservation.getProductId())
                 .orElseThrow();
-
-        entityManager.lock(product, LockModeType.PESSIMISTIC_WRITE);
 
         if (product.getStockQuantity() < reservation.getQuantity()) {
             throw new BadRequestException("Stock changed, cannot confirm");
@@ -73,8 +91,7 @@ public class ReservationService {
     }
 
 
-    @Transactional
-    public void release(Long reservationId) {
+    private void release(Long reservationId) {
 
         StockReservation reservation = reservationRepository.findByIdForUpdate(reservationId)
                 .orElseThrow();
