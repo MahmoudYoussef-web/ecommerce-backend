@@ -1,5 +1,7 @@
 package com.mahmoud.ecommerce_backend.config;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,9 +20,18 @@ public class RedisConfig {
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
 
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new PageImplJacksonModule());
+        mapper.activateDefaultTyping(
+                mapper.getPolymorphicTypeValidator(),
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY
+        );
+        GenericJackson2JsonRedisSerializer.registerNullValueSerializer(mapper, null);
+
         RedisSerializationContext.SerializationPair<Object> serializer =
                 RedisSerializationContext.SerializationPair.fromSerializer(
-                        new GenericJackson2JsonRedisSerializer()
+                        new GenericJackson2JsonRedisSerializer(mapper)
                 );
 
         RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
