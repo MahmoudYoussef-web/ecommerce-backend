@@ -13,6 +13,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findByUserId(Long userId);
 
+    List<Order> findAllByOrderByCreatedAtDesc();
+
     Optional<Order> findByOrderNumber(String orderNumber);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
