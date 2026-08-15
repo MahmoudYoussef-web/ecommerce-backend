@@ -16,7 +16,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
@@ -178,7 +182,7 @@ public class AuthServiceImpl implements AuthService {
         );
 
         String rawRefreshToken = UUID.randomUUID().toString();
-        String hashedToken = passwordEncoder.encode(rawRefreshToken);
+        String hashedToken = sha256Hex(rawRefreshToken);
 
         RefreshToken token = RefreshToken.builder()
                 .user(user)
@@ -195,14 +199,23 @@ public class AuthServiceImpl implements AuthService {
 
     private RefreshToken findToken(String rawToken, boolean checkExpiry) {
 
-        List<RefreshToken> tokens = checkExpiry
-                ? refreshTokenRepository.findByRevokedFalseAndExpiresAtAfter(Instant.now())
-                : refreshTokenRepository.findByRevokedFalse();
+        String hash = sha256Hex(rawToken);
 
-        return tokens.stream()
-                .filter(t -> passwordEncoder.matches(rawToken, t.getTokenHash()))
-                .findFirst()
+        return (checkExpiry
+                ? refreshTokenRepository.findByTokenHashAndRevokedFalseAndExpiresAtAfter(hash, Instant.now())
+                : refreshTokenRepository.findByTokenHashAndRevokedFalse(hash))
                 .orElseThrow(() -> new ResourceNotFoundException("Invalid refresh token"));
+    }
+
+
+    private static String sha256Hex(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(bytes);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
     }
 
 
