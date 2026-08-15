@@ -68,6 +68,7 @@ public class Address extends BaseEntity {
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "address_type", nullable = false, length = 20)
+    @Builder.Default
     private AddressType addressType = AddressType.SHIPPING;
 
     @Column(name = "is_default", nullable = false)

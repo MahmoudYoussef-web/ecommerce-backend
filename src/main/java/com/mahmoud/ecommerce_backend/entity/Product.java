@@ -67,15 +67,18 @@ public class Product extends BaseEntity {
 
     @Min(0)
     @Column(nullable = false)
+    @Builder.Default
     private Integer stockQuantity = 0;
 
     @Min(0)
     @Column(nullable = false)
+    @Builder.Default
     private Integer lowStockThreshold = 5;
 
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private ProductStatus status = ProductStatus.DRAFT;
 
     @DecimalMin("0.000")
@@ -91,6 +94,7 @@ public class Product extends BaseEntity {
     private BigDecimal averageRating;
 
     @Column(nullable = false)
+    @Builder.Default
     private Integer reviewCount = 0;
 
     @Column(nullable = false)
