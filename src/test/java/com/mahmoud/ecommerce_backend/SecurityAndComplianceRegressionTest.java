@@ -145,6 +145,17 @@ class SecurityAndComplianceRegressionTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("refresh_token cookie not set on login"));
 
+        // Cookie must be httpOnly, scoped to /api/auth, and carry the dev-profile
+        // SameSite/Secure flags (Lax, non-secure) — never accessible to JS.
+        assertThat(setCookie).contains("HttpOnly");
+        assertThat(setCookie).contains("Path=/api/auth");
+        assertThat(setCookie).contains("SameSite=Lax");
+        assertThat(setCookie).contains("Max-Age=604800");
+
+        // The raw refresh token must NOT also be returned in the JSON body.
+        assertThat(login.getBody()).doesNotContainKey("refreshToken");
+        assertThat(String.valueOf(login.getBody())).doesNotContain("refresh");
+
         String cookieValue = setCookie.split(";")[0];
 
         HttpHeaders headers = new HttpHeaders();
@@ -160,6 +171,16 @@ class SecurityAndComplianceRegressionTest {
 
         assertThat(refresh.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat((String) refresh.getBody().get("accessToken")).isNotBlank();
+
+        // Rotation: a fresh Set-Cookie must be issued for the next cycle.
+        String rotatedCookie = refresh.getHeaders().get(HttpHeaders.SET_COOKIE).stream()
+                .filter(c -> c.startsWith("refresh_token="))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("refresh_token cookie not rotated on refresh"));
+
+        assertThat(rotatedCookie).contains("HttpOnly");
+        assertThat(rotatedCookie).contains("Path=/api/auth");
+        assertThat(refresh.getBody()).doesNotContainKey("refreshToken");
     }
 
     @Test
