@@ -4,6 +4,7 @@ import com.mahmoud.ecommerce_backend.dto.address.AddressResponse;
 import com.mahmoud.ecommerce_backend.dto.address.CreateAddressRequest;
 import com.mahmoud.ecommerce_backend.entity.Address;
 import com.mahmoud.ecommerce_backend.entity.User;
+import com.mahmoud.ecommerce_backend.enums.AddressType;
 import com.mahmoud.ecommerce_backend.exception.ForbiddenException;
 import com.mahmoud.ecommerce_backend.exception.ResourceNotFoundException;
 import com.mahmoud.ecommerce_backend.mapper.AddressMapper;
@@ -28,12 +29,28 @@ public class AddressServiceImpl implements AddressService {
 
         User user = getCurrentUser();
 
+        String fullName = request.getFullName();
+        if (fullName == null || fullName.isBlank()) {
+            fullName = (user.getFirstName() + " " + user.getLastName()).trim();
+        }
+
+        AddressType addressType = request.getAddressType() != null
+                ? request.getAddressType()
+                : AddressType.SHIPPING;
+
         Address address = Address.builder()
                 .user(user)
+                .fullName(fullName)
+                .phone(request.getPhone())
                 .country(request.getCountry())
                 .city(request.getCity())
                 .addressLine1(request.getStreet())
+                .addressLine2(request.getAddressLine2())
+                .state(request.getState())
                 .postalCode(request.getZipCode())
+                .addressType(addressType)
+                .isDefault(request.getIsDefault() != null && request.getIsDefault())
+                .label(request.getLabel())
                 .build();
 
         Address saved = addressRepository.save(address);
