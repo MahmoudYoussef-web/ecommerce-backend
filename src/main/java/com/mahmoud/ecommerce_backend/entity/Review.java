@@ -68,6 +68,7 @@ public class Review extends BaseEntity {
     private boolean verifiedPurchase = false;
 
     @Column(name = "helpful_votes", nullable = false)
+    @Builder.Default
     private Integer helpfulVotes = 0;
 
     @Column(name = "approved", nullable = false)

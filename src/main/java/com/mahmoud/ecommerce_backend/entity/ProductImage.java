@@ -43,9 +43,11 @@ public class ProductImage extends BaseEntity {
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "image_type", nullable = false, length = 20)
+    @Builder.Default
     private ImageType imageType = ImageType.GALLERY;
 
     @Column(name = "display_order", nullable = false)
+    @Builder.Default
     private Integer displayOrder = 0;
 
     @Column(name = "primary_image", nullable = false)
