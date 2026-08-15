@@ -15,4 +15,6 @@ public class UpdateCategoryRequest {
     private String description;
 
     private String imageUrl;
+
+    private Integer displayOrder;
 }

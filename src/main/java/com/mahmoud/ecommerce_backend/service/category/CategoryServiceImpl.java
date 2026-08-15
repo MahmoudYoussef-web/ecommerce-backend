@@ -58,6 +58,10 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = categoryMapper.toEntity(request);
         category.setSlug(normalizedSlug);
 
+        if (category.getDisplayOrder() == null) {
+            category.setDisplayOrder(0);
+        }
+
         categoryRepository.save(category);
 
         return categoryMapper.toResponse(category);
@@ -88,6 +92,18 @@ public class CategoryServiceImpl implements CategoryService {
             }
 
             category.setSlug(normalizedSlug);
+        }
+
+        if (request.getDescription() != null) {
+            category.setDescription(request.getDescription());
+        }
+
+        if (request.getImageUrl() != null) {
+            category.setImageUrl(request.getImageUrl());
+        }
+
+        if (request.getDisplayOrder() != null) {
+            category.setDisplayOrder(request.getDisplayOrder());
         }
 
         return categoryMapper.toResponse(category);

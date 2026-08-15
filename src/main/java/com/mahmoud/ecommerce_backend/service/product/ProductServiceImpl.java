@@ -2,6 +2,7 @@ package com.mahmoud.ecommerce_backend.service.product;
 
 import com.mahmoud.ecommerce_backend.dto.product.*;
 import com.mahmoud.ecommerce_backend.entity.*;
+import com.mahmoud.ecommerce_backend.enums.ProductStatus;
 import com.mahmoud.ecommerce_backend.exception.BadRequestException;
 import com.mahmoud.ecommerce_backend.exception.ResourceNotFoundException;
 import com.mahmoud.ecommerce_backend.mapper.ProductMapper;
@@ -44,6 +45,7 @@ public class ProductServiceImpl implements ProductService {
 
         Product product = productMapper.toEntity(request);
         product.setCategory(category);
+        product.setStatus(request.getStatus() != null ? request.getStatus() : ProductStatus.ACTIVE);
 
         productRepository.save(product);
 
@@ -77,6 +79,9 @@ public class ProductServiceImpl implements ProductService {
         updatePrice(product, request.getPrice());
         updateStock(product, request.getStockQuantity());
         updateCategory(product, request.getCategoryId());
+        if (request.getStatus() != null) {
+            product.setStatus(request.getStatus());
+        }
 
         log.info("Product updated id={}", product.getId());
 

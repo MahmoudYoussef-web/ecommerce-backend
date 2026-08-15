@@ -1,5 +1,6 @@
 package com.mahmoud.ecommerce_backend.dto.product;
 
+import com.mahmoud.ecommerce_backend.enums.ProductStatus;
 import lombok.*;
 import java.math.BigDecimal;
 import java.util.List;
@@ -17,4 +18,5 @@ public class CreateProductRequest {
     private String sku;
     private Long categoryId;
     private List<String> imageUrls;
+    private ProductStatus status;
 }

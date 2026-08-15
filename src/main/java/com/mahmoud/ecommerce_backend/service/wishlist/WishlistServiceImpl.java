@@ -23,6 +23,7 @@ public class WishlistServiceImpl implements WishlistService {
     private final SecurityService securityService;
 
     @Override
+    @Transactional
     public WishlistResponse getWishlist() {
         return map(getOrCreateWishlist());
     }
