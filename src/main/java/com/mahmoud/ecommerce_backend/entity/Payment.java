@@ -1,5 +1,6 @@
 package com.mahmoud.ecommerce_backend.entity;
 
+import com.mahmoud.ecommerce_backend.enums.OrderStatus;
 import com.mahmoud.ecommerce_backend.enums.PaymentMethod;
 import com.mahmoud.ecommerce_backend.enums.PaymentStatus;
 import jakarta.persistence.*;
@@ -106,7 +107,10 @@ public class Payment extends BaseEntity {
         this.gatewayReference = gatewayReference;
         this.paidAt = Instant.now();
 
-        if (order != null) {
+        // Only a still-pending order transitions to PAID here. The late-webhook
+        // compensation path pre-transitions the order to NEEDS_ATTENTION, which
+        // must survive payment completion.
+        if (order != null && order.getStatus() == OrderStatus.PENDING) {
             order.markAsPaid();
         }
     }
@@ -123,6 +127,27 @@ public class Payment extends BaseEntity {
 
         transitionTo(PaymentStatus.CANCELLED);
         this.failureReason = reason;
+    }
+
+    /**
+     * Recovery path: re-open a FAILED/CANCELLED payment so the customer can
+     * retry. Only these two states may rebase; COMPLETED payments never do.
+     * Appends an audit line to gatewayResponse so the retry history remains
+     * visible on the single payment row that exists for the order.
+     */
+    public void rebaseToPending(String auditNote) {
+        Objects.requireNonNull(auditNote);
+
+        PaymentStatus previous = this.status;
+        transitionTo(PaymentStatus.PENDING);
+
+        this.failureReason = null;
+        this.eventId = null;
+
+        String entry = "rebased " + previous + " -> PENDING at " + Instant.now() + ": " + auditNote;
+        this.gatewayResponse = this.gatewayResponse == null
+                ? entry
+                : this.gatewayResponse + "\n" + entry;
     }
 
     public void refund(BigDecimal refundAmount) {
@@ -192,6 +217,13 @@ public class Payment extends BaseEntity {
             case INITIATED -> next == PaymentStatus.COMPLETED
                     || next == PaymentStatus.FAILED
                     || next == PaymentStatus.CANCELLED;
+
+            // Recovery: a failed/cancelled attempt may be retried. The single
+            // payment row per order is rebased to PENDING; the audit trail of
+            // the failed attempt stays in failureReason / gatewayResponse.
+            case FAILED -> next == PaymentStatus.PENDING;
+
+            case CANCELLED -> next == PaymentStatus.PENDING;
 
             case COMPLETED -> next == PaymentStatus.REFUNDED
                     || next == PaymentStatus.PARTIALLY_REFUNDED;

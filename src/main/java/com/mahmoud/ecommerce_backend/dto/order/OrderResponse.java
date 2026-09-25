@@ -17,6 +17,10 @@ public class OrderResponse {
     private BigDecimal totalAmount;
     private BigDecimal totalAmountEgp;
     private BigDecimal exchangeRate;
+    private String couponCode;
+    private BigDecimal discountAmount;
+    private boolean returnRequested;
+    private String returnReason;
     private LocalDateTime exchangeRateAt;
     private AddressSnapshot address;
     private List<OrderItemResponse> items;

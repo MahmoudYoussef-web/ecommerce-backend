@@ -1,0 +1,48 @@
+# ===============================
+# TEST PROFILE
+# Runs the integration tests against a DEDICATED database (ecommerce_db_test)
+# so the shared dev database (ecommerce_db) is never wiped by the test
+# cleanup routines. Values mirror application-dev.yml with the datasource
+# swapped. Never point this at a database that holds real data.
+# ===============================
+spring:
+  datasource:
+    url: ${DB_TEST_URL:jdbc:mysql://localhost:3306/ecommerce_db_test?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:dev_user}
+    password: ${DB_PASSWORD}
+
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET:test-only-jwt-secret-not-used-in-prod}
+
+stripe:
+  secret:
+    key: ${STRIPE_SECRET_KEY:sk_test_placeholder}
+  webhook:
+    secret: ${STRIPE_WEBHOOK_SECRET:whsec_placeholder}
+
+payment:
+  webhook:
+    secret: ${PAYMENT_WEBHOOK_SECRET:test_webhook_secret}
+
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  frontend-url: ${APP_FRONTEND_URL:http://localhost:5173}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  cookie:
+    same-site: ${APP_COOKIE_SAMESITE:Lax}
+    secure: ${APP_COOKIE_SECURE:false}
+  dev:
+    auto-verify-email: true
+  currency:
+    egp-per-usd: ${APP_CURRENCY_EGP_PER_USD:48.75}
+  seed:
+    default-users:
+      enabled: true
+      password: ${APP_SEED_DEFAULT_USERS_PASSWORD:123456}
+
+management:
+  health:
+    mail:
+      enabled: false

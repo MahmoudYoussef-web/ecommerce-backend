@@ -77,6 +77,34 @@ public class AuthController {
     }
 
 
+    /**
+     * Public, unauthenticated. The response is deliberately identical whether
+     * or not the email exists — no account enumeration. Rate-limited by
+     * RateLimitFilter.
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<AuthResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.requestPasswordReset(request);
+        return ResponseEntity.ok(
+                AuthResponse.builder()
+                        .message("If an account exists for that email, a password reset link has been sent.")
+                        .build()
+        );
+    }
+
+
+    /** Public, single-use, short-TTL token exchange for a new password. */
+    @PostMapping("/reset-password")
+    public ResponseEntity<AuthResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(
+                AuthResponse.builder()
+                        .message("Password has been reset successfully. Please sign in.")
+                        .build()
+        );
+    }
+
+
     private void setRefreshCookie(HttpServletResponse response, String rawToken) {
         Cookie cookie = new Cookie(REFRESH_COOKIE_NAME, rawToken);
         cookie.setHttpOnly(true);

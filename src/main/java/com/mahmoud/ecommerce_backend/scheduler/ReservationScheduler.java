@@ -5,12 +5,14 @@ import com.mahmoud.ecommerce_backend.enums.StockReservationStatus;
 import com.mahmoud.ecommerce_backend.repository.StockReservationRepository;
 import com.mahmoud.ecommerce_backend.service.inventory.ReservationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.List;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ReservationScheduler {
@@ -27,6 +29,12 @@ public class ReservationScheduler {
                         Instant.now()
                 );
 
-        expired.forEach(r -> reservationService.expire(r.getId()));
+        for (StockReservation reservation : expired) {
+            try {
+                reservationService.expire(reservation.getId());
+            } catch (Exception ex) {
+                log.warn("Failed to expire reservation id={}", reservation.getId(), ex);
+            }
+        }
     }
 }

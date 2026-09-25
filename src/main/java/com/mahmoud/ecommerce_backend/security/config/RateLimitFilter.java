@@ -2,6 +2,8 @@ package com.mahmoud.ecommerce_backend.security.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mahmoud.ecommerce_backend.exception.ApiErrorResponse;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.Refill;
@@ -18,7 +20,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Per-IP, per-endpoint rate limiting (Bucket4j) for password-based and
@@ -31,10 +32,22 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final Set<String> PROTECTED_PATHS = Set.of(
             "/api/auth/login",
             "/api/auth/register",
-            "/api/auth/refresh"
+            "/api/auth/refresh",
+            "/api/auth/forgot-password",
+            "/api/auth/reset-password"
     );
 
-    private final ConcurrentHashMap<String, Bucket> buckets = new ConcurrentHashMap<>();
+    /**
+     * Bounded + expiring bucket storage. Previously an unbounded
+     * ConcurrentHashMap let attackers grow heap indefinitely by rotating
+     * spoofed client keys. Entries expire after 15 minutes without use and
+     * the cache is hard-capped at 100k keys (evicts least-recently-used).
+     */
+    private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
+            .maximumSize(100_000)
+            .expireAfterAccess(Duration.ofMinutes(15))
+            .build();
+
     private final ObjectMapper objectMapper;
 
     @Value("${app.rate-limit.enabled}")
@@ -45,6 +58,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     @Value("${app.rate-limit.refill-per-minute}")
     private int refillPerMinute;
+
+    /**
+     * Only set true behind a trusted reverse proxy that OVERWRITES
+     * X-Forwarded-For. When false (default, direct exposure), forwarded
+     * headers are ignored entirely so clients cannot rotate spoofed IPs to
+     * bypass throttling.
+     */
+    @Value("${app.rate-limit.trust-proxy:false}")
+    private boolean trustProxy;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -58,7 +80,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         String key = clientIp(request) + "|" + request.getRequestURI();
-        Bucket bucket = buckets.computeIfAbsent(key, k -> newBucket());
+        Bucket bucket = buckets.get(key, k -> newBucket());
 
         if (!bucket.tryConsume(1)) {
             writeTooManyRequests(response, request);
@@ -83,10 +105,19 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return PROTECTED_PATHS.contains(request.getRequestURI());
     }
 
+    /**
+     * Resolves the throttling identity. With trust-proxy=false (default) the
+     * TCP peer address is used and X-Forwarded-For is deliberately ignored —
+     * a client-supplied header must never decide who gets throttled. With
+     * trust-proxy=true (behind a trusted proxy that overwrites the header),
+     * the first forwarded hop is used.
+     */
     private String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+        if (trustProxy) {
+            String forwarded = request.getHeader("X-Forwarded-For");
+            if (forwarded != null && !forwarded.isBlank()) {
+                return forwarded.split(",")[0].trim();
+            }
         }
         String ip = request.getRemoteAddr();
         return ip != null ? ip : "unknown";

@@ -49,6 +49,14 @@ public class Product extends BaseEntity {
     @Column(nullable = false, unique = true, length = 80)
     private String sku;
 
+    /**
+     * Owning vendor user. NULL means "admin-managed" (the legacy state of every
+     * pre-V6 product): fully editable by ADMIN, never editable by any VENDOR.
+     * A non-null value restricts mutation to that vendor user and ADMIN.
+     */
+    @Column(name = "vendor_user_id")
+    private Long vendorUserId;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 

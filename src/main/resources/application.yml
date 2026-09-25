@@ -23,6 +23,10 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # Empty default = noauth, for bare local dev Redis. The docker-compose
+      # stack sets REDIS_PASSWORD and starts Redis with --requirepass so the
+      # cache is never exposed unauthenticated on a mapped host port.
+      password: ${REDIS_PASSWORD:}
 
   mail:
     host: ${MAIL_HOST:smtp.example.com}
@@ -38,6 +42,10 @@ spring:
 
   jpa:
     show-sql: false
+    # Phase 6: OSIV is OFF — database connections are released at transaction
+    # end instead of being held through rendering. All lazy-loading boundaries
+    # are explicit service transactions (Phase 4/6 audits).
+    open-in-view: false
     properties:
       hibernate:
         format_sql: true
@@ -81,12 +89,14 @@ auth:
 
 # ===============================
 # SWAGGER / OPENAPI
+# Disabled by default so production never exposes API docs anonymously.
+# The dev profile explicitly re-enables it (application-dev.yml).
 # ===============================
 springdoc:
   api-docs:
-    enabled: true
+    enabled: false
   swagger-ui:
-    enabled: true
+    enabled: false
 
 # ===============================
 # RATE LIMITING (Bucket4j, per-IP)
@@ -96,19 +106,38 @@ app:
     enabled: ${APP_RATE_LIMIT_ENABLED:true}
     capacity: ${APP_RATE_LIMIT_CAPACITY:10}
     refill-per-minute: ${APP_RATE_LIMIT_REFILL_PER_MINUTE:20}
+    # Only enable when the app runs behind a trusted reverse proxy that
+    # overwrites X-Forwarded-For. When false (default), client IPs come from
+    # the TCP connection and forwarded headers are IGNORED (anti-spoofing).
+    trust-proxy: ${APP_RATE_LIMIT_TRUST_PROXY:false}
 
   # When false (dev default), emails are logged instead of sent over SMTP.
   mail:
     enabled: ${APP_MAIL_ENABLED:false}
 
+  # Product image uploads land here and are served at /uploads/**.
+  upload:
+    dir: ${APP_UPLOAD_DIR:./uploads}
+
+  # Known admin/customer dev accounts are FAIL-CLOSED: not seeded unless
+  # explicitly enabled. Only the dev profile turns them on, with a dev-only
+  # password default. Prod must never seed them.
+  seed:
+    default-users:
+      enabled: ${APP_SEED_DEFAULT_USERS_ENABLED:false}
+      password: ${APP_SEED_DEFAULT_USERS_PASSWORD:}
+
 # ===============================
 # ACTUATOR
+# Only health is exposed over the web. Anything not listed here is not
+# served at all; SecurityConfig additionally restricts /actuator/** beyond
+# health to ADMIN as defense-in-depth.
 # ===============================
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health
   endpoint:
     health:
       show-details: when-authorized

@@ -6,6 +6,8 @@
 **Every order counts.**
 A production-oriented REST API for a multi-tenant e-commerce platform — catalog, cart, stock reservations, Stripe/COD payments, double-entry accounting, and analytics — with security enforced at every layer.
 
+🎬 **Video tour (3 min):** https://youtu.be/d2A5RyFmRRE — full frontend walkthrough (storefront, checkout with coupon, orders + returns, admin dashboard, coupons, analytics).
+
 <br/>
 
 ![Java](https://img.shields.io/badge/Java_21-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
@@ -30,6 +32,7 @@ A production-oriented REST API for a multi-tenant e-commerce platform — catalo
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
+- [Demo Video & UI Tour](#-demo-video--ui-tour)
 - [System Architecture](#-system-architecture)
 - [Order Lifecycle](#-order-lifecycle)
 - [Features](#-features)
@@ -63,6 +66,28 @@ A production-oriented REST API for a multi-tenant e-commerce platform — catalo
 | Multi-tenant data must never leak across tenants | `tenant_id` on every business table + a **Hibernate `@Filter` enabled by an AOP aspect** before every repository call + a `TenantFilter` that rejects requests for inactive tenants |
 | Slow catalog reads on a hot public API | **Redis-backed product caching** with 10-minute TTL and targeted cache eviction on writes |
 | Soft-deleting catalog rows without breaking history | `@Where(is_deleted = false)` soft deletes, so order/review history stays intact while catalog reads stay clean |
+| Discounts without a coupon engine | `Coupon` entity (`V8__coupons.sql`): PERCENT/FIXED, min-subtotal, max-discount cap, date window, usage limit — validated + consumed inside the order transaction, previewable via `GET /api/coupons/validate` |
+| Product images with no upload backend | `POST /api/uploads` stores validated images (type/size-checked, UUID names) on local disk served at `/uploads/**` (public GET, ADMIN/VENDOR writes) |
+| Delivered orders with no return path | Customer `POST /api/orders/{id}/return` (DELIVERED only) → admin `POST /api/orders/{id}/approve-return` (→ REFUNDED) |
+
+---
+
+## 🎬 Demo Video & UI Tour
+
+**Watch (3 min):** https://youtu.be/d2A5RyFmRRE — storefront, checkout with coupon, orders + return request, admin dashboard / coupons / analytics.
+
+<p align="center">
+  <img src="docs/screenshots/storefront-home.png" width="800" alt="Storefront home — hero slider and new arrivals"/>
+</p>
+<p align="center">
+  <img src="docs/screenshots/checkout-coupon.png" width="800" alt="Checkout with EVAL25 coupon applied"/>
+</p>
+<p align="center">
+  <img src="docs/screenshots/order-return.png" width="800" alt="Order detail with return request form"/>
+</p>
+<p align="center">
+  <img src="docs/screenshots/admin-coupons.png" width="800" alt="Admin coupons management page"/>
+</p>
 
 ---
 
@@ -179,10 +204,17 @@ sequenceDiagram
 - JPA Specification search, **Redis product caching** with 10-minute TTL and eviction on write
 - Variant-aware cart pricing with stock validation; wishlist; soft-deleted catalog rows stay out of reads
 - Product reviews — one review per user+product, only approved reviews are public
+- **Image uploads** — `POST /api/uploads` (ADMIN/VENDOR, 5MB image check) served publicly at `/uploads/**`; admin product modal supports upload or URL
+
+### 🏷️ Coupons & Discounts
+- `Coupon` entity: PERCENT/FIXED value, min-subtotal, max-discount cap, active flag, start/end window, usage limit/counter
+- `POST /api/orders` accepts `couponCode` — validated and consumed atomically inside the order transaction, before the currency snapshot
+- `GET /api/coupons/validate?code=&subtotal=` previews the discount without consuming it; admin CRUD at `/api/coupons` (+ `/admin/coupons` UI)
 
 ### 📦 Orders & Inventory
 - Order creation from cart with **stock reservation** (15-min TTL, `PESSIMISTIC_WRITE` + optimistic retry)
 - Ship / deliver / cancel lifecycle (cancel releases reservations)
+- **Returns** — customer requests on DELIVERED orders, admin approves (→ REFUNDED); both sides have UI (order detail + admin order detail)
 - `StockMovement` ledger on order creation and payment confirmation
 - **ReservationScheduler** expires stale reservations every 60s
 
@@ -196,6 +228,7 @@ sequenceDiagram
 ### 📊 Finance & Reporting
 - **Double-entry journaling** on payment completion — debit AR (1100), credit Sales Revenue (4000)
 - Revenue & dashboard aggregates (revenue, order count, average order value) over date ranges for ADMIN / ACCOUNTANT
+- **CSV export** — `GET /api/admin/orders/export` (same filters as the listing, capped at 5000 rows) and `GET /api/reports/dashboard/export`; buttons in admin Orders/Analytics pages
 
 ### 📡 Observability
 - MDC `traceId` / `userId` / `tenantId`, Logstash JSON console logging
@@ -206,7 +239,7 @@ sequenceDiagram
 
 ## 📡 API Reference
 
-47 endpoints across 13 controllers, all under the `/api` context-path · Full interactive docs at `/swagger-ui/index.html`
+57 endpoints across 15 controllers, all under the `/api` context-path · Full interactive docs at `/swagger-ui/index.html`
 
 <!-- ===== SCREENSHOT SLOT: live login execution =====
      POST /api/auth/login executed from Swagger UI - 200 with access token. -->
@@ -229,22 +262,31 @@ sequenceDiagram
 | `POST` | `/api/payments/webhook` | Public | Stripe / internal HMAC webhook |
 | `POST` | `/api/payments/{orderId}/mark-paid` | ADMIN | COD mark-paid (idempotent) |
 | `GET` | `/api/admin/orders` | ADMIN / WAREHOUSE | All-orders summary |
+| `GET` | `/api/admin/orders/export` | ADMIN / WAREHOUSE | Same filters as CSV download (cap 5000) |
 | `GET` | `/api/admin/customers` | ADMIN | Customer list |
 | `GET` | `/api/reports/dashboard` | ADMIN / ACCOUNTANT | Revenue, orders, avg order value |
+| `GET` | `/api/reports/dashboard/export` | ADMIN / ACCOUNTANT | Dashboard row as CSV |
+| `GET` | `/api/coupons/validate` | Authenticated | Preview discount without consuming |
+| `POST` | `/api/coupons` | ADMIN | Create coupon |
+| `POST` | `/api/uploads` | ADMIN / VENDOR | Upload product image (multipart) |
+| `POST` | `/api/orders/{id}/return` | CUSTOMER | Request return (DELIVERED only) |
+| `POST` | `/api/orders/{id}/approve-return` | ADMIN / WAREHOUSE | Approve return (→ REFUNDED) |
 | `GET` | `/api/users/me` | Authenticated | Current user profile |
 
 <details>
-<summary><b>📂 See all 47 endpoints (grouped by controller)</b></summary>
+<summary><b>📂 See all 57 endpoints (grouped by controller)</b></summary>
 
 **AuthController** `/api/auth` — register, login, refresh, logout, verify-email (5)
 **ProductController** `/api/products` — create, update, soft-delete, get-by-id, paginated list, by-category, search (7)
 **CategoryController** `/api/categories` — list, by-slug, create, update, soft-delete (5)
 **CartController** `/api/cart` — get, add item, update item, remove item, clear (5)
 **WishlistController** `/api/wishlist` — get, add item, remove item (3)
-**OrderController** `/api/orders` — create, list, get-by-id (ownership-checked), ship, deliver, cancel (6)
+**OrderController** `/api/orders` — create, list, get-by-id (ownership-checked), ship, deliver, cancel, request-return, approve-return (8)
 **PaymentController** `/api/payments` — create, Stripe checkout, COD mark-paid, webhook (4)
-**AdminController** `/api/admin` — orders, customers (2)
-**ReportController** `/api/reports` — revenue, dashboard (2)
+**CouponController** `/api/coupons` — create, update, delete, list, validate (5)
+**UploadController** `/api/uploads` — image upload (1)
+**AdminController** `/api/admin` — orders, orders export (CSV), customers (3)
+**ReportController** `/api/reports` — revenue, dashboard, dashboard export (CSV) (3)
 **UserController** `/api/users` — me, update me (2)
 **AddressController** `/api/addresses` — create, list, delete (3)
 **ReviewController** `/api/reviews` — create (unique per user+product), public approved list (2)
@@ -309,7 +351,7 @@ sequenceDiagram
 
 ## 🗄️ Database Schema
 
-23 domain entities + an embedded `AddressSnapshot`, 3 Flyway migrations (`V1__baseline.sql`, `V2__currency_snapshot.sql`, `V3__verification_token_expiry.sql`) · `ddl-auto: validate` with Flyway-managed schema:
+ 24 domain entities + an embedded `AddressSnapshot`, 10 Flyway migrations (`V1__baseline.sql` … `V7__performance_indexes.sql`, `V8__coupons.sql`, `V9__order_returns.sql`, `V10__coupon_type_enum.sql`) · `ddl-auto: validate` with Flyway-managed schema:
 
 ```mermaid
 erDiagram
@@ -362,6 +404,16 @@ erDiagram
         decimal total_amount
         decimal total_amount_egp
         decimal exchange_rate
+        varchar coupon_code
+        decimal discount_amount
+        boolean return_requested
+    }
+    COUPON {
+        bigint id PK
+        varchar code UK
+        enum type
+        decimal value
+        int used_count
     }
     PAYMENT {
         bigint id PK
@@ -439,10 +491,13 @@ Enforced across three layers — filter chain, tenancy, and service-level idempo
 
 | Limitation | Detail |
 |---|---|
-| File uploads | `FileStorageService` is a stub — it returns a placeholder CDN URL; no real object-storage backend is wired yet |
-| Coupons / discounts | `coupon_code` exists as an order column only — there is no coupon entity or discount engine |
-| Password reset | Email verification is fully implemented, but there is **no password-reset flow** yet |
-| Reservation expiry job | `ReservationScheduler` is annotated `@Scheduled` but `@EnableScheduling` is not enabled anywhere — stale reservation expiry is not actively running |
+| Manual DB edits vs cache | Catalog reads (products/product_images/categories) are served from the **Redis product cache** (`products_page`, `products`, `products_search` keys). Any direct SQL change to catalog tables is invisible to the API until the cache is cleared — run `redis-cli FLUSHALL` (or restart the app) after manual edits |
+| File uploads | Product images upload to local disk (`./uploads`, served at `/uploads/**` via `POST /api/uploads`); configure `app.upload.dir` + reverse-proxy caching before production |
+| Coupons / discounts | Coupon engine implemented (`Coupon` entity, `V8__coupons.sql`): percent/fixed, min-subtotal, date window, usage cap; applied at order creation via `couponCode`, admin CRUD at `/api/coupons` |
+| Password reset | Fully implemented: `POST /api/auth/forgot-password` (anti-enumeration) + `POST /api/auth/reset-password` (single-use, expiring token) + authenticated change at `POST /api/users/me/password` |
+| Reservation expiry job | `ReservationScheduler` runs every 60s (`@EnableScheduling` on the application class) and releases stale reservations |
+| Returns | Customer return requests (`POST /api/orders/{id}/return`, DELIVERED only) with `return_requested/return_reason`; admin approves via `POST /api/orders/{id}/approve-return` (→ REFUNDED) |
+| CSV export | Admin orders (`GET /api/admin/orders/export`) and dashboard (`GET /api/reports/dashboard/export`) stream `text/csv`; export buttons in admin Orders/Analytics pages |
 | Prod email sending | SMTP wiring exists and dev logs emails instead of sending; a real mail provider must be configured before production |
 | Caching scope | Redis product cache is single-store, not distributed across app instances |
 | Checkout webhooks | Internal webhook requires a payment provider that supports HMAC signing; Stripe uses its own SDK-verified path |
@@ -493,7 +548,7 @@ npm run dev   # http://localhost:5173, proxies /api -> :8080
 ./mvnw test
 ```
 
-37 tests across 9 classes — full HTTP regression suites (auth, tenants, role matrix, security & compliance, COD), plus an inventory concurrency test (20 threads, no oversell) and a 1000-user load test.
+ 112 tests across 29 classes — full HTTP regression suites (auth, tenants, role matrix, security & compliance, COD, coupons, returns), plus inventory concurrency (20 threads, no oversell) and a 1000-user load test. Note: the shell must provide `DB_USERNAME`/`DB_PASSWORD` explicitly (a machine-wide `DB_USERNAME=root` will otherwise override the defaults); the test profile uses `ecommerce_db_test` (+ `ecommerce_db_prod_test` for the prod-security test) and Redis on `localhost:6379`.
 
 ---
 

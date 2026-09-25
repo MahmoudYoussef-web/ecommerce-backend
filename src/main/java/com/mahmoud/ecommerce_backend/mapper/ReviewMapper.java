@@ -11,7 +11,12 @@ public interface ReviewMapper {
 
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "userName", expression = "java(review.getUser().getFullName())")
+    @Mapping(target = "title", source = "title")
+    @Mapping(target = "comment", source = "body")
+    @Mapping(target = "verifiedPurchase", source = "verifiedPurchase")
+    @Mapping(target = "helpfulVotes", source = "helpfulVotes")
     ReviewResponse toResponse(Review review);
 
+    @Mapping(target = "body", source = "comment")
     Review toEntity(CreateReviewRequest request);
 }

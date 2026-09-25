@@ -59,6 +59,13 @@ public class PaymentController {
         return ApiResponse.success(null, "COD payment marked as paid");
     }
 
+    @Operation(summary = "Dev/test: complete the caller's own card payment (mock Stripe)")
+    @PostMapping("/{paymentId}/mock-complete")
+    public ApiResponse<Void> mockComplete(@PathVariable Long paymentId) {
+        paymentService.mockCompletePayment(paymentId);
+        return ApiResponse.success(null, "Mock payment completed");
+    }
+
     @Operation(summary = "Webhook endpoint for payment provider")
     @PostMapping("/webhook")
     public ApiResponse<Void> webhook(HttpServletRequest request,
@@ -78,18 +85,9 @@ public class PaymentController {
 
             if ("checkout.session.completed".equals(event.getType())) {
 
-                Session session = (Session) event.getDataObjectDeserializer()
-                        .getObject()
-                        .orElseThrow(() -> new ForbiddenException("Invalid session data"));
+                Session session = deserializeSession(event);
 
-                String paymentIdStr = session.getMetadata().get("paymentId");
-                String orderIdStr = session.getMetadata().get("orderId");
-
-                if (paymentIdStr == null || orderIdStr == null) {
-                    throw new ForbiddenException("Missing metadata");
-                }
-
-                Long paymentId = Long.valueOf(paymentIdStr);
+                Long paymentId = extractPaymentId(session);
 
                 BigDecimal amountFromStripe = BigDecimal.valueOf(session.getAmountTotal())
                         .divide(BigDecimal.valueOf(100));
@@ -103,6 +101,24 @@ public class PaymentController {
                         session.getId(),
                         amountFromStripe,
                         currencyFromStripe
+                );
+
+            } else if ("checkout.session.expired".equals(event.getType())
+                    || "checkout.session.async_payment_failed".equals(event.getType())) {
+
+                Session session = deserializeSession(event);
+
+                Long paymentId = extractPaymentId(session);
+
+                PaymentStatus failureStatus = "checkout.session.expired".equals(event.getType())
+                        ? PaymentStatus.CANCELLED
+                        : PaymentStatus.FAILED;
+
+                paymentService.processWebhook(
+                        event.getId(),
+                        paymentId,
+                        failureStatus,
+                        session.getId()
                 );
             }
 
@@ -131,5 +147,19 @@ public class PaymentController {
         paymentService.processWebhook(eventId, paymentId, status, reference);
 
         return ApiResponse.success(null, "Webhook processed");
+    }
+
+    private Session deserializeSession(Event event) {
+        return (Session) event.getDataObjectDeserializer()
+                .getObject()
+                .orElseThrow(() -> new ForbiddenException("Invalid session data"));
+    }
+
+    private Long extractPaymentId(Session session) {
+        String paymentIdStr = session.getMetadata().get("paymentId");
+        if (paymentIdStr == null) {
+            throw new ForbiddenException("Missing metadata");
+        }
+        return Long.valueOf(paymentIdStr);
     }
 }

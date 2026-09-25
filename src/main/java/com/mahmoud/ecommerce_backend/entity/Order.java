@@ -98,6 +98,15 @@ public class Order extends BaseEntity {
     @Column(length = 500)
     private String cancellationReason;
 
+    @Column(name = "return_requested", nullable = false)
+    @Builder.Default
+    private boolean returnRequested = false;
+
+    @Column(name = "return_reason", length = 500)
+    private String returnReason;
+
+    private Instant returnedAt;
+
     @Column(length = 1000)
     private String customerNotes;
 
@@ -105,8 +114,12 @@ public class Order extends BaseEntity {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();
 
-    @OneToOne(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Payment payment;
+    // NOTE(Phase 6): the inverse OneToOne to Payment was REMOVED. A nullable
+    // inverse OneToOne cannot be proxied by Hibernate, so even fetch=LAZY
+    // resolved one SELECT per loaded order on every listing page. Nothing in
+    // the codebase navigated it (payment state is read via grouped repository
+    // queries / PaymentRepository.findByOrderId), and payment lifecycle is
+    // managed exclusively through PaymentRepository.
 
 
 
@@ -182,6 +195,44 @@ public class Order extends BaseEntity {
         transition(OrderStatus.CANCELLED);
     }
 
+    /**
+     * Paid at the gateway but fulfillment is blocked (e.g. the stock
+     * reservation expired and inventory was consumed elsewhere). Money is
+     * recorded; an operator must restock-and-continue or refund-and-cancel.
+     * The reason is carried in the payment record and the service log.
+     */
+    public void markNeedsAttention() {
+        transition(OrderStatus.NEEDS_ATTENTION);
+    }
+
+    /**
+     * Customer asks to return a DELIVERED order. Records the request;
+     * an admin later approves it (→ REFUNDED) or leaves it delivered.
+     */
+    public void requestReturn(String reason) {
+        if (status != OrderStatus.DELIVERED) {
+            throw new IllegalStateException("Only delivered orders can be returned");
+        }
+        if (returnRequested) {
+            throw new IllegalStateException("Return already requested");
+        }
+        Objects.requireNonNull(reason, "reason");
+        if (reason.isBlank()) {
+            throw new IllegalArgumentException("Return reason is required");
+        }
+        this.returnRequested = true;
+        this.returnReason = reason;
+        this.returnedAt = Instant.now();
+    }
+
+    /** Admin approves a pending return request (DELIVERED → REFUNDED). */
+    public void approveReturn() {
+        if (status != OrderStatus.DELIVERED || !returnRequested) {
+            throw new IllegalStateException("No pending return request");
+        }
+        transition(OrderStatus.REFUNDED);
+    }
+
 
 
     public void setCurrencySnapshot(BigDecimal totalAmountEgp, BigDecimal exchangeRate, Instant exchangeRateAt) {
@@ -189,7 +240,6 @@ public class Order extends BaseEntity {
         this.exchangeRate = exchangeRate;
         this.exchangeRateAt = exchangeRateAt;
     }
-
     public void applyDiscount(BigDecimal discount) {
         requirePending();
         if (discount == null || discount.compareTo(BigDecimal.ZERO) < 0) {
@@ -198,6 +248,11 @@ public class Order extends BaseEntity {
 
         this.discountAmount = discount;
         recalculateTotals();
+    }
+
+    public void setCouponCode(String couponCode) {
+        requirePending();
+        this.couponCode = couponCode;
     }
 
     public void setShippingCost(BigDecimal cost) {
@@ -237,7 +292,11 @@ public class Order extends BaseEntity {
 
     private boolean isValid(OrderStatus from, OrderStatus to) {
         return switch (from) {
-            case PENDING -> to == OrderStatus.PAID || to == OrderStatus.CANCELLED;
+            case PENDING -> to == OrderStatus.PAID
+                    || to == OrderStatus.CANCELLED
+                    || to == OrderStatus.NEEDS_ATTENTION;
+            case NEEDS_ATTENTION -> to == OrderStatus.PAID
+                    || to == OrderStatus.CANCELLED;
             case PAID -> to == OrderStatus.SHIPPED || to == OrderStatus.CANCELLED;
             case SHIPPED -> to == OrderStatus.DELIVERED;
             case DELIVERED -> to == OrderStatus.REFUNDED;

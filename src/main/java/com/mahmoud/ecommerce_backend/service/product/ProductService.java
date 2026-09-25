@@ -29,4 +29,10 @@ public interface ProductService {
             Boolean inStock,
             Pageable pageable
     );
+
+    /**
+     * Bounded per-category slices for the homepage — replaces the legacy
+     * size=100 catalog dump. Cached; evicted with the catalog caches.
+     */
+    com.mahmoud.ecommerce_backend.dto.product.HomeSectionsResponse getHomeSections(int perCategory);
 }

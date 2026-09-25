@@ -90,6 +90,12 @@
             <version>8.10.1</version>
         </dependency>
 
+        <!-- Bounded, expiring storage for rate-limit buckets -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
         <!-- FLYWAY -->
         <dependency>
             <groupId>org.flywaydb</groupId>
@@ -215,5 +221,36 @@
 
         </plugins>
     </build>
+
+    <!--
+        Opt-in coverage profile (Phase 5): mvnw.cmd -Pcoverage test
+        Default builds are unchanged — the agent only attaches when the
+        profile is active, and reports are written to target/site/jacoco.
+    -->
+    <profiles>
+        <profile>
+            <id>coverage</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>0.8.12</version>
+                        <executions>
+                            <execution>
+                                <id>prepare-agent</id>
+                                <goals><goal>prepare-agent</goal></goals>
+                            </execution>
+                            <execution>
+                                <id>report</id>
+                                <phase>test</phase>
+                                <goals><goal>report</goal></goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

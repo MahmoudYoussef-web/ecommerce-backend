@@ -2,6 +2,8 @@ package com.mahmoud.ecommerce_backend.repository;
 
 import com.mahmoud.ecommerce_backend.entity.User;
 import com.mahmoud.ecommerce_backend.entity.UserRole;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -22,4 +24,9 @@ public interface UserRoleRepository extends JpaRepository<UserRole, Long> {
 
     @Query("select ur.user from UserRole ur join ur.role r where r.name = :roleName")
     List<User> findUsersByRole(@Param("roleName") com.mahmoud.ecommerce_backend.enums.RoleName roleName);
+
+    @Query(value = "select ur.user from UserRole ur join ur.role r where r.name = :roleName",
+           countQuery = "select count(ur) from UserRole ur join ur.role r where r.name = :roleName")
+    Page<User> findUsersByRole(@Param("roleName") com.mahmoud.ecommerce_backend.enums.RoleName roleName,
+                               Pageable pageable);
 }

@@ -19,8 +19,16 @@ public class LoggingFilter implements Filter {
                          FilterChain chain)
             throws IOException, ServletException {
 
+        String traceId = UUID.randomUUID().toString();
+
         try {
-            MDC.put("traceId", UUID.randomUUID().toString());
+            MDC.put("traceId", traceId);
+
+            // Echo the correlation id so clients can reference it in bug
+            // reports; it matches the traceId field in every JSON log line.
+            if (response instanceof jakarta.servlet.http.HttpServletResponse httpResponse) {
+                httpResponse.setHeader("X-Trace-Id", traceId);
+            }
 
             LoggingContextUtil.enrich();
 

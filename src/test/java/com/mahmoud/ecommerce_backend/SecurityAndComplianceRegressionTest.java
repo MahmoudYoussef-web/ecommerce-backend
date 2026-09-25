@@ -11,10 +11,13 @@ import com.mahmoud.ecommerce_backend.enums.RoleName;
 import com.mahmoud.ecommerce_backend.repository.OrderRepository;
 import com.mahmoud.ecommerce_backend.repository.UserRepository;
 import com.mahmoud.ecommerce_backend.repository.UserRoleRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.mahmoud.ecommerce_backend.security.config.RateLimitFilter;
+import com.mahmoud.ecommerce_backend.support.TestBuckets;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -48,6 +51,9 @@ class SecurityAndComplianceRegressionTest {
     private TestRestTemplate restTemplate;
 
     @Autowired
+    private RateLimitFilter rateLimitFilter;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -55,6 +61,13 @@ class SecurityAndComplianceRegressionTest {
 
     @Autowired
     private OrderRepository orderRepository;
+
+    @BeforeEach
+    void resetRateLimitBuckets() {
+        // Ordered tests below assume a fresh bucket (e.g. expecting a 403 CSRF
+        // rejection, not a 429, on the cross-site refresh probe).
+        TestBuckets.reset(rateLimitFilter);
+    }
 
     @Test
     @org.junit.jupiter.api.Order(1)

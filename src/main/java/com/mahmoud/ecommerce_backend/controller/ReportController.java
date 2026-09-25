@@ -42,4 +42,22 @@ public class ReportController {
                 "Dashboard data"
         );
     }
+
+    @PreAuthorize("hasAnyRole('ADMIN','ACCOUNTANT')")
+    @GetMapping(value = "/dashboard/export", produces = "text/csv")
+    public org.springframework.http.ResponseEntity<String> exportDashboard(
+            @RequestParam Instant from,
+            @RequestParam Instant to
+    ) {
+        Map<String, Object> data = reportService.getDashboard(from, to);
+        String csv = "from,to,revenue,totalOrders,avgOrderValue\n"
+                + from + "," + to + ","
+                + data.get("revenue") + ","
+                + data.get("totalOrders") + ","
+                + data.get("avgOrderValue") + "\n";
+        return org.springframework.http.ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"dashboard.csv\"")
+                .contentType(org.springframework.http.MediaType.parseMediaType("text/csv"))
+                .body(csv);
+    }
 }

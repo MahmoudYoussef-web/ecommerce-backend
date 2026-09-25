@@ -14,7 +14,10 @@ public class ProductResponse {
     private String name;
     private String description;
     private BigDecimal price;
+    private BigDecimal discountedPrice;
     private Integer stockQuantity;
+    private Double averageRating;
+    private Integer reviewCount;
     private CategoryResponse category;
     private List<String> imageUrls;
 }

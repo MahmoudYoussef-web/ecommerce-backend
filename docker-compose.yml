@@ -25,15 +25,21 @@ services:
     image: redis:7-alpine
     container_name: ecommerce-redis
     restart: always
+    # Cache values are deserialized by the application, so unauthenticated
+    # write access would enable cache poisoning. Require a password (override
+    # via REDIS_PASSWORD in the environment / .env — change the dev default).
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-devredispass}"]
     ports:
       - "6380:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-devredispass}
 
   app:
     build: .
@@ -52,7 +58,10 @@ services:
       SPRING_DATASOURCE_PASSWORD: dev_pass
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-<revoked-secret-removed>}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-devredispass}
+      # Fail-fast: compose refuses to start without an explicit secret.
+      # Generate one with: openssl rand -base64 64
+      AUTH_JWT_SECRET: "${AUTH_JWT_SECRET:?AUTH_JWT_SECRET is required}"
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-change_me_internal_webhook_secret}

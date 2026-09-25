@@ -13,4 +13,10 @@ public interface AuthService {
     void logout(String rawToken);
 
     void verifyEmail(String token);
+
+    void changePassword(ChangePasswordRequest request);
+
+    void requestPasswordReset(ForgotPasswordRequest request);
+
+    void resetPassword(ResetPasswordRequest request);
 }

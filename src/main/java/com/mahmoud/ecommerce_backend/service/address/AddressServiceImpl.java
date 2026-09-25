@@ -13,11 +13,13 @@ import com.mahmoud.ecommerce_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class AddressServiceImpl implements AddressService {
 
     private final AddressRepository addressRepository;
@@ -25,6 +27,7 @@ public class AddressServiceImpl implements AddressService {
     private final AddressMapper addressMapper;
 
     @Override
+    @Transactional
     public AddressResponse createAddress(CreateAddressRequest request) {
 
         User user = getCurrentUser();
@@ -70,6 +73,7 @@ public class AddressServiceImpl implements AddressService {
     }
 
     @Override
+    @Transactional
     public void deleteAddress(Long id) {
 
         User user = getCurrentUser();

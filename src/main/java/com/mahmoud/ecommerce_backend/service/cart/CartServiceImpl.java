@@ -181,8 +181,13 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
     }
 
+    /**
+     * Cart gate mirrors checkout exactly (Phase 6 closure F-2): only ACTIVE
+     * products may enter a cart, so an item can never sit in a cart that
+     * checkout would later reject.
+     */
     private void validateProduct(Product product) {
-        if (product.getStatus() == ProductStatus.DRAFT) {
+        if (product.getStatus() != ProductStatus.ACTIVE) {
             throw new BadRequestException("Product is not available");
         }
     }

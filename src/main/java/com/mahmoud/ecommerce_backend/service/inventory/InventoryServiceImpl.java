@@ -3,12 +3,14 @@ package com.mahmoud.ecommerce_backend.service.inventory;
 import com.mahmoud.ecommerce_backend.entity.Product;
 import com.mahmoud.ecommerce_backend.entity.StockMovement;
 import com.mahmoud.ecommerce_backend.enums.StockMovementType;
+import com.mahmoud.ecommerce_backend.event.inventory.ProductStockChangedEvent;
 import com.mahmoud.ecommerce_backend.exception.BadRequestException;
 import com.mahmoud.ecommerce_backend.exception.ResourceNotFoundException;
 import com.mahmoud.ecommerce_backend.repository.ProductRepository;
 import com.mahmoud.ecommerce_backend.repository.StockMovementRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,7 @@ public class InventoryServiceImpl implements InventoryService {
 
     private final ProductRepository productRepository;
     private final StockMovementRepository stockMovementRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final int MAX_RETRIES = 3;
 
@@ -77,6 +80,9 @@ public class InventoryServiceImpl implements InventoryService {
                 product.setStockQuantity(after);
 
                 saveMovement(productId, Math.abs(quantity), before, after, type, note);
+
+                // Authoritative stock change → evict product caches post-commit.
+                eventPublisher.publishEvent(new ProductStockChangedEvent(productId));
 
                 return;
 

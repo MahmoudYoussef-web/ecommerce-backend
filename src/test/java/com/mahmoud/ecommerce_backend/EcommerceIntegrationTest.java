@@ -12,6 +12,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.mahmoud.ecommerce_backend.security.config.RateLimitFilter;
+import com.mahmoud.ecommerce_backend.support.TestBuckets;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -39,6 +41,9 @@ public class EcommerceIntegrationTest {
 
     @Autowired
     private TestRestTemplate restTemplate;
+
+    @Autowired
+    private RateLimitFilter rateLimitFilter;
 
     @Autowired
     private PaymentRepository paymentRepository;
@@ -79,6 +84,7 @@ public class EcommerceIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        TestBuckets.reset(rateLimitFilter);
         TenantContext.set(1L);
         cleanup();
 

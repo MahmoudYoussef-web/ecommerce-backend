@@ -140,19 +140,25 @@ public class PageImplJacksonModule extends SimpleModule {
             if (contentNode == null || !contentNode.isArray()) {
                 return List.of();
             }
-            if (elementType == null || elementType.isBlank()) {
-                return PLAIN.convertValue(contentNode, new TypeReference<List<?>>() {
-                });
+
+            // The element type is data written alongside cached values, so it
+            // must never drive unrestricted class loading. Only classes from
+            // this application's own namespace may be resolved; anything else
+            // (or an unresolvable name) falls back to untyped maps.
+            if (elementType != null && !elementType.isBlank()
+                    && elementType.startsWith("com.mahmoud.ecommerce_backend.")) {
+                try {
+                    Class<?> elementClass = Class.forName(elementType);
+                    com.fasterxml.jackson.databind.JavaType listType = PLAIN.getTypeFactory()
+                            .constructCollectionType(List.class, elementClass);
+                    return PLAIN.convertValue(contentNode, listType);
+                } catch (ClassNotFoundException e) {
+                    // fall through to the safe untyped conversion below
+                }
             }
-            try {
-                Class<?> elementClass = Class.forName(elementType);
-                com.fasterxml.jackson.databind.JavaType listType = PLAIN.getTypeFactory()
-                        .constructCollectionType(List.class, elementClass);
-                return PLAIN.convertValue(contentNode, listType);
-            } catch (ClassNotFoundException e) {
-                return PLAIN.convertValue(contentNode, new TypeReference<List<?>>() {
-                });
-            }
+
+            return PLAIN.convertValue(contentNode, new TypeReference<List<?>>() {
+            });
         }
 
         private Sort readSort(JsonNode sortNode) {

@@ -24,4 +24,9 @@ public interface PaymentService {
     String createCheckoutSession(Long paymentId);
 
     void markCodPaid(Long orderId);
+
+    /** Dev/test helper: completes the caller's own pending card payment and
+     *  marks its order PAID, simulating the Stripe webhook without a real
+     *  charge. Only used by the mock-checkout path when Stripe is unconfigured. */
+    void mockCompletePayment(Long paymentId);
 }

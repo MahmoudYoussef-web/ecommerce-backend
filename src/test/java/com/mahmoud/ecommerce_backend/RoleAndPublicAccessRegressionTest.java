@@ -15,6 +15,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.mahmoud.ecommerce_backend.security.config.RateLimitFilter;
+import com.mahmoud.ecommerce_backend.support.TestBuckets;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -50,6 +52,9 @@ class RoleAndPublicAccessRegressionTest {
     private TestRestTemplate restTemplate;
 
     @Autowired
+    private RateLimitFilter rateLimitFilter;
+
+    @Autowired
     private CategoryRepository categoryRepository;
 
     @Autowired
@@ -66,6 +71,7 @@ class RoleAndPublicAccessRegressionTest {
     @BeforeEach
     void setUp() {
         cleanup();
+        TestBuckets.reset(rateLimitFilter);
 
         Category category = categoryRepository.save(
                 Category.builder()

@@ -129,17 +129,28 @@ public class SecurityConfig {
 
                         .requestMatchers("/actuator/health").permitAll()
 
+                        // Defense-in-depth: any other actuator endpoint that
+                        // might be enabled later is never reachable by
+                        // anonymous users or CUSTOMER/VENDOR/WAREHOUSE roles.
+                        // Rule order matters — health is permitted above.
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
+
 
                         .requestMatchers(HttpMethod.GET,
                                 "/api/products/**",
                                 "/api/categories/**",
-                                "/api/reviews/**"
+                                "/api/reviews/**",
+                                "/uploads/**"
                         ).permitAll()
 
 
                         .requestMatchers(HttpMethod.POST,
                                 "/api/products/**",
                                 "/api/categories/**"
+                        ).hasAnyRole("ADMIN", "VENDOR")
+
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/uploads/**"
                         ).hasAnyRole("ADMIN", "VENDOR")
 
                         .requestMatchers(HttpMethod.PUT,

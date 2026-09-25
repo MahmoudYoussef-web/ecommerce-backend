@@ -45,7 +45,7 @@ public class StripePaymentProvider implements PaymentProvider {
             throw new BadRequestException("PaymentId must not be null");
         }
 
-        Payment payment = paymentRepository.findById(paymentId)
+        Payment payment = paymentRepository.findByIdWithOrder(paymentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
 
         if (payment.getOrder() == null) {
@@ -60,12 +60,24 @@ public class StripePaymentProvider implements PaymentProvider {
             throw new BadRequestException("Order is not payable");
         }
 
+        // Dev/test mode: when no real Stripe key is configured we do not call
+        // Stripe (it would fail auth). Instead we return a URL to the frontend
+        // mock checkout page, which completes the payment via the mock-complete
+        // endpoint. This path is never taken once a real sk_test/sk_live key is
+        // set, so wiring in Stripe requires no code change.
+        if (!isStripeConfigured()) {
+            return frontendUrl + "/mock-checkout?paymentId=" + payment.getId()
+                    + "&orderId=" + payment.getOrder().getId();
+        }
+
         try {
 
             SessionCreateParams params = SessionCreateParams.builder()
                     .setMode(SessionCreateParams.Mode.PAYMENT)
-                    .setSuccessUrl(frontendUrl + "/order/success?session_id={CHECKOUT_SESSION_ID}")
-                    .setCancelUrl(frontendUrl + "/checkout")
+                    // orderId lets the success page verify the payment actually
+                    // completed before claiming success.
+                    .setSuccessUrl(frontendUrl + "/order-success?session_id={CHECKOUT_SESSION_ID}&orderId=" + payment.getOrder().getId())
+                    .setCancelUrl(frontendUrl + "/checkout?payment=cancelled")
                     .putMetadata("paymentId", String.valueOf(payment.getId()))
                     .putMetadata("orderId", String.valueOf(payment.getOrder().getId()))
                     .addLineItem(
@@ -109,5 +121,11 @@ public class StripePaymentProvider implements PaymentProvider {
         } catch (SignatureVerificationException e) {
             throw new ForbiddenException("Invalid Stripe signature");
         }
+    }
+
+    private boolean isStripeConfigured() {
+        return stripeSecretKey != null
+                && !stripeSecretKey.isBlank()
+                && !stripeSecretKey.equals("sk_test_your_secret_key_here");
     }
 }

@@ -6,6 +6,7 @@ import com.mahmoud.ecommerce_backend.exception.BadRequestException;
 import com.mahmoud.ecommerce_backend.repository.ProductRepository;
 import com.mahmoud.ecommerce_backend.repository.StockReservationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +19,7 @@ public class ReservationService {
 
     private final StockReservationRepository reservationRepository;
     private final ProductRepository productRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final long TTL_SECONDS = 900; // 15 min
 
@@ -51,7 +53,14 @@ public class ReservationService {
     }
 
 
-    @Transactional
+    /**
+     * Confirms all reservations for the order, decrementing product stock.
+     * Deliberately NOT @Transactional: it joins the caller's transaction so a
+     * stock conflict surfaces as a catchable exception WITHOUT marking the
+     * surrounding payment/webhook transaction rollback-only. Partial confirms
+     * are acceptable — releaseForOrder() no-ops on CONFIRMED reservations, so
+     * allocated stock stays allocated for a flagged order.
+     */
     public void confirmForOrder(Long orderId) {
 
         for (StockReservation reservation : reservationRepository.findAllByOrderId(orderId)) {
@@ -74,7 +83,10 @@ public class ReservationService {
         StockReservation reservation = reservationRepository.findByIdForUpdate(reservationId)
                 .orElseThrow();
 
-        if (reservation.getStatus() == StockReservationStatus.CONFIRMED) return;
+        // Idempotent: only RESERVED reservations consume stock. CONFIRMED are
+        // already allocated; RELEASED/EXPIRED belong to earlier attempts of a
+        // retried payment and must be skipped, not fatal.
+        if (reservation.getStatus() != StockReservationStatus.RESERVED) return;
 
         Product product = productRepository.findByIdForUpdate(reservation.getProductId())
                 .orElseThrow();
@@ -88,6 +100,12 @@ public class ReservationService {
         );
 
         reservation.confirm();
+
+        // Authoritative stock change → product caches must be evicted once
+        // this transaction commits (Phase 6 stale-stock fix).
+        eventPublisher.publishEvent(
+                new com.mahmoud.ecommerce_backend.event.inventory.ProductStockChangedEvent(
+                        product.getId()));
     }
 
 

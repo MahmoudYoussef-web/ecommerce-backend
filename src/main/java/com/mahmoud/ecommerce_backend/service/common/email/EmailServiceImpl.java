@@ -16,8 +16,8 @@ public class EmailServiceImpl implements EmailService {
 
     private final JavaMailSender mailSender;
 
-    @Value("${app.base-url}")
-    private String baseUrl;
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
 
     @Value("${app.mail.enabled}")
     private boolean mailEnabled;
@@ -45,10 +45,26 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public void sendEmailVerification(String to, String token) {
 
-        String verificationLink = baseUrl + "/api/auth/verify-email?token=" + token;
+        // Point at the SPA verification page so users get the real UI flow,
+        // not raw backend JSON. The page forwards the token to the API.
+        String verificationLink = frontendUrl + "/verify-email?token=" + token;
 
         String subject = "Verify your email";
         String body = "Click the link to verify your account:\n" + verificationLink;
+
+        send(to, subject, body);
+    }
+
+    @Override
+    public void sendPasswordReset(String to, String token) {
+
+        String resetLink = frontendUrl + "/reset-password?token=" + token;
+
+        String subject = "Reset your password";
+        String body = "A password reset was requested for your account.\n"
+                + "Click the link to choose a new password (link expires in 30 minutes):\n"
+                + resetLink + "\n\n"
+                + "If you did not request this, you can safely ignore this email.";
 
         send(to, subject, body);
     }

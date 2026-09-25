@@ -11,5 +11,8 @@ public class ReviewResponse {
     private Long userId;
     private String userName;
     private Integer rating;
+    private String title;
     private String comment;
+    private Boolean verifiedPurchase;
+    private Integer helpfulVotes;
 }

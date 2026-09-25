@@ -35,3 +35,6 @@ app:
     auto-verify-email: ${APP_DEV_AUTO_VERIFY_EMAIL:false}
   currency:
     egp-per-usd: ${APP_CURRENCY_EGP_PER_USD:48.75}
+  seed:
+    default-users:
+      enabled: false

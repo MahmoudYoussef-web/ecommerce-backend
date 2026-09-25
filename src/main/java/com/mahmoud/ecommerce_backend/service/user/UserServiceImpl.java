@@ -47,10 +47,13 @@ public class UserServiceImpl implements UserService {
             user.setLastName(request.getLastName());
         }
 
-        if (request.getEmail() != null) {
-            user.setEmail(request.getEmailNormalized());
-        }
-
+        // Email is deliberately immutable here (Phase 4): changing it without
+        // a verified-email flow would let a session hijacker silently redirect
+        // future password-reset emails and take over the account. The API
+        // contract is preserved — an "email" field sent by clients is ignored,
+        // firstName/lastName updates behave exactly as before.
+        // TODO(Phase 5+): verified email-change flow (confirm password → mail
+        //  verification link to the NEW address → swap only after click).
 
         return buildUserResponse(user);
     }

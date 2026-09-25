@@ -5,6 +5,8 @@ import com.mahmoud.ecommerce_backend.enums.*;
 import com.mahmoud.ecommerce_backend.repository.*;
 import com.mahmoud.ecommerce_backend.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 @Transactional
@@ -27,6 +30,12 @@ public class DataInitializer implements ApplicationListener<ApplicationReadyEven
     private final PasswordEncoder passwordEncoder;
     private final ChartOfAccountRepository coaRepository;
     private final JdbcTemplate jdbcTemplate;
+
+    @Value("${app.seed.default-users.enabled:false}")
+    private boolean seedDefaultUsersEnabled;
+
+    @Value("${app.seed.default-users.password:}")
+    private String seedDefaultUsersPassword;
 
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
@@ -44,9 +53,7 @@ public class DataInitializer implements ApplicationListener<ApplicationReadyEven
             Role adminRole = getRole(RoleName.ROLE_ADMIN);
             Role customerRole = getRole(RoleName.ROLE_CUSTOMER);
 
-
-            createUserIfNotExists("admin@gmail.com", adminRole);
-            createUserIfNotExists("user@gmail.com", customerRole);
+            seedDefaultUsers(adminRole, customerRole);
 
 
             createAccount("1100", "Accounts Receivable", AccountType.ASSET);
@@ -83,7 +90,20 @@ public class DataInitializer implements ApplicationListener<ApplicationReadyEven
                 .orElseThrow(() -> new IllegalStateException("Role not found: " + roleName));
     }
 
-    private void createUserIfNotExists(String email, Role role) {
+    private void seedDefaultUsers(Role adminRole, Role customerRole) {
+        if (!seedDefaultUsersEnabled) {
+            log.info("Default user seeding disabled (app.seed.default-users.enabled=false). Skipping.");
+            return;
+        }
+        if (seedDefaultUsersPassword == null || seedDefaultUsersPassword.isBlank()) {
+            log.warn("app.seed.default-users.enabled=true but app.seed.default-users.password is blank. Skipping default user seeding.");
+            return;
+        }
+        createUserIfNotExists("admin@gmail.com", adminRole, seedDefaultUsersPassword);
+        createUserIfNotExists("user@gmail.com", customerRole, seedDefaultUsersPassword);
+    }
+
+    private void createUserIfNotExists(String email, Role role, String password) {
 
         String normalizedEmail = email.toLowerCase().trim();
 
@@ -93,7 +113,7 @@ public class DataInitializer implements ApplicationListener<ApplicationReadyEven
                 .firstName("Default")
                 .lastName("User")
                 .email(normalizedEmail)
-                .passwordHash(passwordEncoder.encode("123456"))
+                .passwordHash(passwordEncoder.encode(password))
                 .status(UserStatus.ACTIVE)
                 .enabled(true)
                 .accountNonLocked(true)

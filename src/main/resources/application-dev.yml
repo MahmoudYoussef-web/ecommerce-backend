@@ -35,6 +35,21 @@ app:
     auto-verify-email: ${APP_DEV_AUTO_VERIFY_EMAIL:true}
   currency:
     egp-per-usd: ${APP_CURRENCY_EGP_PER_USD:48.75}
+  # Dev-only: seeds admin@gmail.com / user@gmail.com for local testing.
+  # Override the password via APP_SEED_DEFAULT_USERS_PASSWORD (e.g. a strong one
+  # on shared machines). The prod profile keeps seeding disabled entirely.
+  seed:
+    default-users:
+      enabled: ${APP_SEED_DEFAULT_USERS_ENABLED:true}
+      password: ${APP_SEED_DEFAULT_USERS_PASSWORD:123456}
+
+# Dev-only convenience: API docs stay available locally. The base
+# application.yml keeps them disabled (prod never serves Swagger).
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
 
 # Dev logs mail instead of sending it (app.mail.enabled=false) and uses a
 # placeholder SMTP host, so the mail health indicator would always report DOWN.

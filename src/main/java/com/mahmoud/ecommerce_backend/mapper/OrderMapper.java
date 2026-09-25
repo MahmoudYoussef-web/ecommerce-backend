@@ -3,7 +3,6 @@ package com.mahmoud.ecommerce_backend.mapper;
 import com.mahmoud.ecommerce_backend.dto.order.*;
 import com.mahmoud.ecommerce_backend.entity.Order;
 import com.mahmoud.ecommerce_backend.entity.OrderItem;
-import com.mahmoud.ecommerce_backend.entity.Address;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -19,6 +18,15 @@ public interface OrderMapper {
     @Mapping(target = "address", source = "shippingAddress")
     @Mapping(target = "status", expression = "java(order.getStatus() != null ? order.getStatus().name() : null)")
     OrderResponse toResponse(Order order);
+
+    /**
+     * Maps an order WITHOUT touching lazy orderItems — callers batch-load
+     * items separately and set them, so listing pages never N+1.
+     */
+    @Mapping(target = "address", source = "shippingAddress")
+    @Mapping(target = "status", expression = "java(order.getStatus() != null ? order.getStatus().name() : null)")
+    @Mapping(target = "items", ignore = true)
+    OrderResponse toResponseShallow(Order order);
 
     List<OrderItemResponse> toItemResponses(List<OrderItem> items);
 
@@ -37,8 +45,6 @@ public interface OrderMapper {
     com.mahmoud.ecommerce_backend.dto.order.AddressSnapshot map(
             com.mahmoud.ecommerce_backend.entity.AddressSnapshot snapshot
     );
-
-    AddressSnapshot toSnapshot(Address address);
 
     default LocalDateTime map(Instant instant) {
         if (instant == null) return null;
